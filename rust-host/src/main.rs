@@ -1,30 +1,30 @@
 mod abi;
+mod utils;
 
-use wasmer_runtime::{error, func, imports, Func, compile};
+use kube::Config;
 use std::cell::RefCell;
+use wasmer_runtime::{compile, error, func, imports, Func};
 
 // Make sure that the compiled wasm-sample-app is accessible at this path.
-static WASM: &'static [u8] =
-    include_bytes!("../http.wasm");
-
-macro_rules! execution_time {
-    ($code:block) => {
-        {
-            let start = std::time::Instant::now();
-            let res = $code;
-            let execution_time = start.elapsed();
-            (res, execution_time)
-        }
-    };
-}
+static WASM: &'static [u8] = include_bytes!("../http.wasm");
 
 fn main() -> error::Result<()> {
-    let client = reqwest::Client::builder().build().unwrap();
-    let rt = RefCell::new(tokio::runtime::Runtime::new().unwrap());
+    std::env::set_var("RUST_LOG", "info,kube=debug");
+    env_logger::init();
 
-    let (module, duration) = execution_time!({
-        compile(WASM).expect("wasm compilation")
-    });
+    let mut runtime = tokio::runtime::Runtime::new().expect("Cannot create a tokio runtime");
+
+    let kubeconfig = runtime
+        .block_on(Config::infer())
+        .expect("Cannot infer the kubeconfig");
+    let cluster_url = kubeconfig.cluster_url.clone();
+
+    let client = reqwest::ClientBuilder::from(kubeconfig)
+        .build()
+        .expect("Cannot build the http client from the kubeconfig");
+    let ref_cell_runtime = RefCell::new(runtime);
+
+    let (module, duration) = execution_time!({ compile(WASM).expect("wasm compilation") });
     println!("Compilation time duration: {} ms", duration.as_millis());
 
     // get the version of the WASI module in a non-strict way, meaning we're
@@ -33,25 +33,32 @@ fn main() -> error::Result<()> {
         .expect("WASI version detected from Wasm module");
 
     // WASI imports
-    let mut base_imports =
-        wasmer_wasi::generate_import_object_for_version(wasi_version, vec![], vec![], vec![], vec![]);
+    let mut base_imports = wasmer_wasi::generate_import_object_for_version(
+        wasi_version,
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    );
 
     // add execute_request to the ABI
     let custom_import = imports! {
         "http-proxy-abi" => {
             // the func! macro autodetects the signature
-            "request" => func!(abi::request_fn(rt, client)),
+            "request" => func!(abi::request_fn(cluster_url, ref_cell_runtime, client)),
         },
     };
     base_imports.extend(custom_import);
 
     // Compile our webassembly into an `Instance`.
-    let instance = module.instantiate(&base_imports)
+    let instance = module
+        .instantiate(&base_imports)
         .expect("Failed to instantiate wasm module");
 
     // Call our start function!
     let run_fn: Func<(), ()> = instance.exports.get("run").unwrap();
-    run_fn.call()
+    run_fn
+        .call()
         .expect("Something went wrong while invoking run");
 
     Ok(())

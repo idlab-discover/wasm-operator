@@ -1,18 +1,23 @@
-mod abi;
+use k8s_openapi::api::core::v1::Pod;
+use kube::api::ListParams;
+use kube::runtime::Reflector;
+use kube::{Api, Client};
 
 #[no_mangle]
 pub extern "C" fn run() {
-    let j = serde_json::json!({"hello": "world"});
-    let address = "http://localhost:8080/hello/world";
+    let client = Client::default();
 
-    println!("Going to send {} to {}", j, address);
+    let pods: Api<Pod> = Api::namespaced(client, "default");
+    let lp = ListParams::default().timeout(1);
+    let rf = Reflector::new(pods).params(lp);
 
-    // Execute http request
-    println!("{:?}", abi::execute_request(
-        http::Request::post(address)
-            .header("hello", "world")
-            .body(serde_json::to_vec(&j).unwrap()).unwrap()
-    ))
+    loop {
+        rf.poll().expect("Poll error!");
 
+        println!("Poll completed, pods in default:");
+
+        for p in rf.state().expect("Cannot get reflector state") {
+            println!("{:?}", p)
+        }
+    }
 }
-
