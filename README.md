@@ -13,6 +13,6 @@ cargo build --target wasm32-wasi --release
 cd ..
 cp ext/target/wasm32-wasi/release/http.wasm rust-host
 cd rust-host
-cargo run
+cargo +nightly run
 ```
 

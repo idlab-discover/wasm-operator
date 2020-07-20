@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 wasmer-runtime-core = "0.17.1"
 wasmer-runtime = "0.17.1"
+wasmer-singlepass-backend = "0.17.1"
 wasmer-wasi = "0.17.1"
 reqwest = { version = "0.10", default-features = false, features = ["json", "rustls-tls"] }
 tokio = { version = "0.2", features = ["full"] }
