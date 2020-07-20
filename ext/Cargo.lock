@@ -191,6 +191,9 @@ version = "0.1.0"
 dependencies = [
  "k8s-openapi",
  "kube",
+ "kube-derive",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -267,6 +270,19 @@ dependencies = [
  "thiserror",
  "time 0.2.16",
  "url",
+]
+
+[[package]]
+name = "kube-derive"
+version = "0.35.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b090cd3118831d145636422c8a1e6c109928cb56833775c7f84382c9ea2240a8"
+dependencies = [
+ "Inflector",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn",
 ]
 
 [[package]]
