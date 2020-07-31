@@ -1,17 +1,16 @@
-use super::abi::{HttpRequest, HttpResponse, Ptr};
+use super::data::{HttpRequest, HttpResponse, Ptr};
 use bytes::Bytes;
 use http::HeaderMap;
-use std::cell::RefCell;
 use std::convert::{TryFrom, TryInto};
 use wasmer_runtime::{Array, Ctx, WasmPtr};
 use wasmer_runtime_core::{structures::TypedIndex, types::TableIndex};
 
 use crate::execution_time;
+use super::AbiContext;
+use tokio::runtime::Handle;
 
-pub fn request_fn(
-    cluster_url: url::Url,
-    rt: RefCell<tokio::runtime::Runtime>,
-    http_client: reqwest::Client,
+pub(crate) fn request_fn(
+    abi_context: AbiContext
 ) -> impl Fn(&mut Ctx, WasmPtr<u8, Array>, u32, u32) -> u64 {
     let f = move |ctx: &mut Ctx, ptr: WasmPtr<u8, Array>, len: u32, allocator_fn: u32| -> u64 {
         let (ptr, duration) = execution_time!({
@@ -24,9 +23,7 @@ pub fn request_fn(
             let inner_request: HttpRequest = bincode::deserialize(&inner_req_bytes).unwrap();
 
             let inner_response = run_request(
-                &cluster_url,
-                &mut rt.borrow_mut(),
-                &http_client,
+                &abi_context,
                 inner_request,
             );
 
@@ -65,21 +62,22 @@ pub fn request_fn(
 
 /// Wrapper around the hacks to run the request
 pub(crate) fn run_request(
-    cluster_url: &url::Url,
-    rt: &mut tokio::runtime::Runtime,
-    http_client: &reqwest::Client,
+    abi_context: &AbiContext,
     mut inner_request: HttpRequest,
 ) -> HttpResponse {
     // Path request url
     inner_request.uri = http::Uri::try_from(finalize_url(
-        cluster_url,
+        &abi_context.cluster_url,
         inner_request.uri.path_and_query().unwrap(),
     ))
     .expect("Cannot build the final uri");
 
     let request: http::Request<Vec<u8>> = inner_request.into();
-    let response: reqwest::Response = rt
-        .block_on(async { http_client.execute(request.try_into().unwrap()).await })
+    let response: reqwest::Response = abi_context.rt_handle
+        .block_on(async {
+            Handle::current();
+            abi_context.http_client.execute(request.try_into().unwrap()).await
+        })
         .unwrap();
 
     let status_code = response.status();
@@ -87,7 +85,11 @@ pub(crate) fn run_request(
     for (k, v) in response.headers().iter() {
         headers.append(k, v.clone());
     }
-    let response_body: Bytes = rt.block_on(async { response.bytes().await }).unwrap();
+    let response_body: Bytes = abi_context.rt_handle
+        .block_on(async {
+            response.bytes().await
+        })
+        .unwrap();
 
     HttpResponse {
         status_code,

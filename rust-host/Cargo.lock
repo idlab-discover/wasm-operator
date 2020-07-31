@@ -26,6 +26,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85bb70cc08ec97ca5450e6eba421deeea5f172c0fc61f78b5357b2a8e8be195f"
+
+[[package]]
 name = "arc-swap"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1563,6 +1569,7 @@ dependencies = [
 name = "rust-host"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "bincode",
  "bytes",
  "dirs 3.0.1",
@@ -1572,10 +1579,12 @@ dependencies = [
  "http-serde",
  "k8s-openapi",
  "kube",
+ "log",
  "reqwest",
  "safe-transmute",
  "serde",
  "serde_json",
+ "serde_yaml",
  "tokio",
  "url",
  "wasmer-runtime",
