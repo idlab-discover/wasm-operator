@@ -1,18 +1,44 @@
 # Extending Kubernetes API in-process
 
-* `ext`: WASM module using the http proxy
-* `rust-host`: The host running wasm module
+Project structure:
+
+* `ext-simple-pod`: Wasm module that implements a simple controller to spawn pods
+* `ext-memcached`: Wasm module that implements the operator-sdk [Memcached sample](https://sdk.operatorframework.io/docs/golang/quickstart/)
+* `kube-rust`: Hacked https://github.com/clux/kube-rs to run inside the module
+* `rust-host`: The host running wasm modules
 
 ## Build
 
-To build the sample:
+To build the memcached example controller:
 
 ```shell script
-cd ext
+cd ext-memcached
 cargo build --target wasm32-wasi --release
-cd ..
-cp ext/target/wasm32-wasi/release/http.wasm rust-host
-cd rust-host
-cargo +nightly run
 ```
 
+Assuming you have a Kubernetes cluster up and running and you have an admin access to it configured in your local environment, deploy the CRD:
+
+```shell script
+kubectl apply -f ext-memcached/crd.yaml
+```
+
+Now, copy in a directory (eg `rust-host/compiled_mods`) the compiled module and the manifest the host needs to identify the abi to use:
+
+```shell script
+mkdir rust-host/compiled_mods
+cp ext-memcached/memcached.yaml rust-host/compiled_mods
+cp ext-memcached/wasm32-wasi/release/memcached.wasm rust-host/compiled_mods
+```
+
+To compile and run the host:
+
+```shell script
+cd rust-host
+cargo +nightly run compiled_mods
+```
+
+Now you can create the `Memcached` CR with:
+
+```shell script
+kubectl apply -f ext-memcached/cr.yaml
+```
