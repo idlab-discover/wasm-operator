@@ -1,6 +1,5 @@
 use crate::{
     api::{Api, ListParams, Meta, WatchEvent},
-    Result,
 };
 
 use serde::de::DeserializeOwned;
@@ -35,7 +34,7 @@ where
 
 impl<K> Informer<K>
 where
-    K: Clone + DeserializeOwned + Meta,
+    K: Clone + DeserializeOwned + Meta + 'static,
 {
     /// Create an informer on an api resource
     pub fn new(api: Api<K>) -> Self {
@@ -88,11 +87,11 @@ where
     /// You should always poll. When this call ends, call it again.
     /// Do not call it from more than one context.
     ///
-    /// All real errors are bubbled up, as are WachEvent::Error instances.
+    /// All real errors are bubbled up, as are WatchEvent::Error instances.
     /// If we are desynced we force a 10s wait 10s before starting the poll.
     ///
     /// If you need to track the `resourceVersion` you can use `Informer::version()`.
-    pub fn poll(&self) -> Result<Vec<Result<WatchEvent<K>>>> {
+    pub fn poll<F: 'static + Fn(WatchEvent<K>) + Send>(&self, callback: F) {
         trace!("Watching {}", self.api.resource.kind);
 
         // First check if we need to backoff or reset our resourceVersion from last time
@@ -116,43 +115,31 @@ where
 
         // Start watching from our previous watch point
         let resource_version = self.version.lock().unwrap().clone();
-        let events = self.api.watch(&self.params, &resource_version)?;
+        self.api.watch(&self.params, &resource_version, move |event| {
+            // Clone our Arcs for each event
+            let needs_resync = needs_resync.clone();
+            let version = version.clone();
 
-        Ok(events
-            .into_iter()
-            .map(move |event| {
-                // Clone our Arcs for each event
-                let needs_resync = needs_resync.clone();
-                let version = version.clone();
-
-                // Check if we need to update our version based on the incoming events
-                match &event {
-                    Ok(WatchEvent::Added(o))
-                    | Ok(WatchEvent::Modified(o))
-                    | Ok(WatchEvent::Deleted(o))
-                    | Ok(WatchEvent::Bookmark(o)) => {
-                        // always store the last seen resourceVersion
-                        if let Some(nv) = Meta::resource_ver(o) {
-                            *version.lock().unwrap() = nv.clone();
-                        }
+            // Check if we need to update our version based on the incoming events
+            match &event {
+                WatchEvent::Added(o)
+                | WatchEvent::Modified(o)
+                | WatchEvent::Deleted(o)
+                | WatchEvent::Bookmark(o) => {
+                    // always store the last seen resourceVersion
+                    if let Some(nv) = Meta::resource_ver(o) {
+                        *version.lock().unwrap() = nv.clone();
                     }
-                    Ok(WatchEvent::Error(e)) => {
-                        // 410 Gone => we need to restart from latest next call
-                        if e.code == 410 {
-                            warn!("Stream desynced: {:?}", e);
-                            *needs_resync.lock().unwrap() = true;
-                        }
+                }
+                WatchEvent::Error(e) => {
+                    // 410 Gone => we need to restart from latest next call
+                    if e.code == 410 {
+                        warn!("Stream desynced: {:?}", e);
+                        *needs_resync.lock().unwrap() = true;
                     }
-                    Err(e) => {
-                        // All we seem to get here are:
-                        // - EOFs (mostly solved with timeout enforcement + resyncs)
-                        // - serde errors (bad struct use, on app side)
-                        // Not much we can do about these here.
-                        warn!("Unexpected watch error: {:?}", e);
-                    }
-                };
-                event
-            })
-            .collect())
+                }
+            };
+            callback(event)
+        });
     }
 }

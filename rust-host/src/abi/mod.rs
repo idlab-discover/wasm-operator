@@ -1,5 +1,8 @@
 use wasmer_runtime::{Instance, ImportObject};
 use serde::{Serialize, Deserialize};
+use crate::kube_watch::WatcherConfiguration;
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "abi-rust-v1alpha1")]
 mod rust_v1alpha1;
@@ -7,6 +10,7 @@ mod rust_v1alpha1;
 pub trait Abi {
     fn generate_imports(
         &self,
+        watcher_configuration: Arc<Mutex<WatcherConfiguration>>,
         cluster_url: url::Url,
         rt_handle: tokio::runtime::Handle,
         http_client: reqwest::Client

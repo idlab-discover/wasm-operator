@@ -26,22 +26,17 @@ pub extern "C" fn run() {
     let client = Client::default();
 
     let mems: Api<Memcached> = Api::namespaced(client.clone(), "default");
-    let inform = Informer::new(mems).params(ListParams::default().timeout(1));
+    let inform = Informer::new(mems).params(ListParams::default());
 
-    loop {
-        let events = inform.poll().expect("Poll error");
-
-        for e in events {
-            match e {
-                Ok(WatchEvent::Added(mut o)) | Ok(WatchEvent::Modified(mut o)) => {
-                    reconcile(&client, &mut o).expect("Reconcile error");
-                }
-                Ok(WatchEvent::Error(e)) => println!("Error event: {:?}", e),
-                Err(e) => println!("Error event: {:?}", e),
-                _ => {}
+    inform.poll(move |e| {
+        match e {
+            WatchEvent::Added(mut o) | WatchEvent::Modified(mut o) => {
+                reconcile(&client, &mut o).expect("Reconcile error");
             }
+            WatchEvent::Error(e) => println!("Error event: {:?}", e),
+            e => println!("Not handled event: {:?}", e)
         }
-    }
+    });
 }
 
 fn reconcile(client: &Client, mem: &mut Memcached) -> Result<(), kube::Error> {

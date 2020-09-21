@@ -1,6 +1,5 @@
 use crate::{
-    api::{Api, ListParams, Meta, WatchEvent},
-    Error, Result,
+    api::{Api, ListParams, Meta, WatchEvent}, Result
 };
 use serde::de::DeserializeOwned;
 
@@ -21,7 +20,7 @@ use std::{collections::BTreeMap, sync::Arc, sync::Mutex};
 #[derive(Clone)]
 pub struct Reflector<K>
 where
-    K: Clone + DeserializeOwned + Meta,
+    K: Clone + DeserializeOwned + Meta + 'static,
 {
     state: Arc<Mutex<State<K>>>,
     params: ListParams,
@@ -52,16 +51,14 @@ where
         let kind = &self.api.resource.kind;
         let resource_version = self.state.lock().unwrap().version.clone();
         trace!("Polling {} from resourceVersion={}", kind, resource_version);
-        let events = self.api.watch(&self.params, &resource_version)?;
-
-        for ev in events {
+        self.api.watch(&self.params, &resource_version, |ev| {
             let mut state = self.state.lock().unwrap();
             // Informer-like version tracking:
             match &ev {
-                Ok(WatchEvent::Added(o))
-                | Ok(WatchEvent::Modified(o))
-                | Ok(WatchEvent::Deleted(o))
-                | Ok(WatchEvent::Bookmark(o)) => {
+                WatchEvent::Added(o)
+                | WatchEvent::Modified(o)
+                | WatchEvent::Deleted(o)
+                | WatchEvent::Bookmark(o) => {
                     // always store the last seen resourceVersion
                     if let Some(nv) = Meta::resource_ver(o) {
                         trace!("Updating reflector version for {} to {}", kind, nv);
@@ -74,33 +71,28 @@ where
             let data = &mut state.data;
             // Core Reflector logic
             match ev {
-                Ok(WatchEvent::Added(o)) => {
+                WatchEvent::Added(o) => {
                     debug!("Adding {} to {}", Meta::name(&o), kind);
                     data.entry(ObjectId::key_for(&o))
                         .or_insert_with(|| o.clone());
                 }
-                Ok(WatchEvent::Modified(o)) => {
+                WatchEvent::Modified(o) => {
                     debug!("Modifying {} in {}", Meta::name(&o), kind);
                     data.entry(ObjectId::key_for(&o))
                         .and_modify(|e| *e = o.clone());
                 }
-                Ok(WatchEvent::Deleted(o)) => {
+                WatchEvent::Deleted(o) => {
                     debug!("Removing {} from {}", Meta::name(&o), kind);
                     data.remove(&ObjectId::key_for(&o));
                 }
-                Ok(WatchEvent::Bookmark(o)) => {
+                WatchEvent::Bookmark(o) => {
                     debug!("Bookmarking {} from {}", Meta::name(&o), kind);
                 }
-                Ok(WatchEvent::Error(e)) => {
+                WatchEvent::Error(e) => {
                     warn!("Failed to watch {}: {:?}", kind, e);
-                    return Err(Error::Api(e));
-                }
-                Err(e) => {
-                    warn!("Received error while watcing {}: {:?}", kind, e);
-                    return Err(e);
                 }
             }
-        }
+        });
 
         Ok(())
     }

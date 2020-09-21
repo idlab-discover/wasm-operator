@@ -1,0 +1,67 @@
+[package]
+name = "kube"
+version = "0.42.0"
+description = "Kubernetes client in futures controller runtime"
+authors = [
+  "clux <sszynrae@gmail.com>",
+  "Teo Klestrup Röijezon <teo@nullable.se>",
+  "ynqa <un.pensiero.vano@gmail.com>",
+]
+license = "Apache-2.0"
+repository = "https://github.com/clux/kube-rs"
+readme = "../README.md"
+keywords = ["kubernetes", "client", "runtime", "reflector", "informer"]
+categories = ["web-programming::http-client"]
+edition = "2018"
+
+[features]
+default = ["native-tls"]
+native-tls = ["openssl", "reqwest/native-tls"]
+rustls-tls = ["rustls", "reqwest/rustls-tls"]
+derive = ["kube-derive"]
+
+[package.metadata.docs.rs]
+features = ["derive"]
+
+[dependencies]
+base64 = "0.12.1"
+chrono = "0.4.15"
+dirs = "3.0.1"
+serde = { version = "1.0.111", features = ["derive"] }
+serde_json = "1.0.53"
+serde_yaml = "0.8.13"
+http = "0.2.1"
+url = "2.1.1"
+log = "0.4.11"
+time = "0.2.16"
+either = "1.6.0"
+thiserror = "1.0.20"
+futures-util = "0.3.5"
+futures = "0.3.5"
+pem = "0.8.1"
+openssl = { version = "0.10.30", optional = true }
+rustls = { version = "0.18.1", optional = true }
+bytes = "0.5.6"
+Inflector = "0.11.4"
+tokio = { version = "0.2.22", features = ["time", "signal", "sync"] }
+static_assertions = "1.1.0"
+kube-derive = { version = "^0.42.0", optional = true }
+
+[dependencies.reqwest]
+version = "0.10.7"
+default-features = false
+features = ["json", "gzip", "stream"]
+
+[dependencies.k8s-openapi]
+version = "0.9.0"
+default-features = false
+features = []
+
+[dev-dependencies]
+tempfile = "3.1.0"
+tokio = { version = "0.2.21", features = ["full"] }
+
+[dev-dependencies.k8s-openapi]
+version = "0.9.0"
+default-features = false
+features = ["v1_18"]

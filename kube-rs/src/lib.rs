@@ -17,7 +17,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), kube::Error> {
-//!     // Read the environment to find config for kube client.
+//!     // Read the environment to find config for kube-rs-async client.
 //!     // Note that this tries an in-cluster configuration first,
 //!     // then falls back on a kubeconfig file.
 //!     let kube_client = Client::try_default().await?;
@@ -80,6 +80,7 @@ extern crate log;
 pub mod api;
 pub mod client;
 pub mod runtime;
+mod abi;
 
 pub mod error;
 

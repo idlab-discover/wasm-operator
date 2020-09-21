@@ -1,9 +1,9 @@
-//! Error handling in [`kube`][crate]
+//! Error handling in [`kube-rs-async`][crate]
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-/// Possible errors when working with [`kube`][crate]
+/// Possible errors when working with [`kube-rs-async`][crate]
 #[derive(Error, Debug)]
 pub enum Error {
     /// ApiError for when things fail

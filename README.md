@@ -4,7 +4,8 @@ Project structure:
 
 * `ext-simple-pod`: Wasm module that implements a simple controller to spawn pods
 * `ext-memcached`: Wasm module that implements the operator-sdk [Memcached sample](https://sdk.operatorframework.io/docs/golang/quickstart/)
-* `kube-rust`: Hacked https://github.com/clux/kube-rs to run inside the module
+* `kube-rs`: Hacked https://github.com/clux/kube-rs to run inside the module
+* `kube-rs-host`: Hacked https://github.com/clux/kube-rs to use inside the host
 * `rust-host`: The host running wasm modules
 
 ## Build

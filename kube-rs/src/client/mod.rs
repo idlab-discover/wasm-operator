@@ -1,18 +1,12 @@
 //! A basic API client for interacting with the Kubernetes API
 //!
-//! The [`Client`] uses standard kube error handling.
+//! The [`Client`] uses standard kube-rs-async error handling.
 //!
 //! This client can be used on its own or in conjuction with
 //! the [`Api`][crate::api::Api] type for more structured
 //! interaction with the kuberneres API
 
-mod abi;
-
-use crate::{
-    api::{Meta, WatchEvent},
-    error::ErrorResponse,
-    Error, Result,
-};
+use crate::{error::ErrorResponse, Error, Result, abi};
 
 use either::{Either, Left, Right};
 use http::{self, StatusCode};
@@ -123,65 +117,11 @@ impl Client {
             })?))
         }
     }
-
-    /// Perform a raw request and get back a stream of [`WatchEvent`] objects
-    pub fn request_events<T: Clone + Meta>(
-        &self,
-        request: http::Request<Vec<u8>>,
-    ) -> Result<Vec<Result<WatchEvent<T>>>>
-    where
-        T: DeserializeOwned,
-    {
-        let method = request.method().to_string();
-        let uri = request.uri().to_string();
-        let res = self.send(request)?;
-        trace!("{} {}: {:?}", method, uri, res.status());
-        trace!("Headers: {:?}", res.headers());
-
-        // Now unfold the chunked responses into a Stream
-        // We first construct a Stream of Vec<Result<T>> as we potentially might need to
-        // yield multiple objects per loop, then we flatten it to the Stream<Result<T>> as expected.
-        // Any reqwest errors will terminate this stream early.
-
-        let mut items: Vec<Result<WatchEvent<T>>> = Vec::new();
-
-        // Split on newlines
-        for line in res.into_body().split(|x| x == &b'\n') {
-            match serde_json::from_slice(line) {
-                Ok(val) => {
-                    // on success clear our buffer
-                    items.push(Ok(val));
-                }
-                Err(e) => {
-                    // If this is not an eof error it's a parse error
-                    // so log it and store it
-                    // Otherwise we don't do anything as we've already
-                    // added in the current partial line to our buffer for
-                    // use in the next loop
-                    if !e.is_eof() {
-                        // Check if it's a general API error response
-                        let e = match serde_json::from_slice(line) {
-                            Ok(e) => Error::Api(e),
-                            _ => {
-                                let line = String::from_utf8_lossy(line);
-                                warn!("Failed to parse: {}", line);
-                                Error::SerdeError(e)
-                            }
-                        };
-
-                        // Clear the buffer as this was a valid object
-                        items.push(Err(e));
-                    }
-                }
-            }
-        }
-        return Ok(items);
-    }
 }
 
 /// Kubernetes returned error handling
 ///
-/// Either kube returned an explicit ApiError struct,
+/// Either kube-rs-async returned an explicit ApiError struct,
 /// or it someohow returned something we couldn't parse as one.
 ///
 /// In either case, present an ApiError upstream.

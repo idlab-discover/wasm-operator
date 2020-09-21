@@ -24,7 +24,8 @@ where
     ///
     /// From [Watch bookmarks](https://kubernetes.io/docs/reference/using-api/api-concepts/#watch-bookmarks)
     /// NB: This became Beta first in Kubernetes 1.16
-    Bookmark(K),
+    /// Slimmed down K for Bookmark WatchEvents due to #285
+    Bookmark(Bookmark),
     /// There was some kind of error
     Error(ErrorResponse),
 }
@@ -42,6 +43,28 @@ where
             WatchEvent::Error(e) => write!(f, "Error event: {:?}", e),
         }
     }
+}
+
+/// Slimed down K for WatchEvent::Bookmark
+///
+/// Can only be relied upon to have metadata with resource version
+/// Slimmed down K for Bookmark WatchEvents due to #285
+/// Bookmarks contain apiVersion + kind + basically empty metadata
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Bookmark {
+    /// apiVersion + kind
+    #[serde(flatten)]
+    pub types: TypeMeta,
+
+    /// Basically empty metadata
+    pub metadata: BookmarkMeta,
+}
+
+/// Slimed down Metadata for WatchEvent::Bookmark
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BookmarkMeta {
+    pub resource_version: String,
 }
 
 // -------------------------------------------------------
@@ -88,7 +111,7 @@ where
     P: Clone,
     U: Clone,
 {
-    /// A constructor like the one from kube-rs-async-derive
+    /// A constructor like the one from kube-derive
     pub fn new<K: k8s_openapi::Resource>(name: &str, spec: P) -> Self {
         Self {
             types: TypeMeta {
@@ -154,7 +177,7 @@ impl<T: Clone> ObjectList<T> {
     /// # Example
     ///
     /// ```
-    /// use kube-rs-async::api::{ObjectList, ListMeta};
+    /// use kube::api::{ObjectList, ListMeta};
     ///
     /// let metadata: ListMeta = Default::default();
     /// let items = vec![1, 2, 3];

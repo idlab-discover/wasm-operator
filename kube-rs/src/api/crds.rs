@@ -12,7 +12,7 @@ use std::marker::PhantomData;
 /// This is the smallest amount of info we need to run the API against a CR
 /// The version, and group must be set by the user.
 ///
-/// Prefer using #[derive(CustomResource)] from `kube-derive` over this.
+/// Prefer using #[derive(CustomResource)] from `kube-rs-async-derive` over this.
 pub struct CustomResource {
     kind: String,
     group: String,

@@ -1,6 +1,9 @@
 use wasmer_runtime::{func, imports, Func, ImportObject, Instance};
 use reqwest::Url;
 use tokio::runtime::Handle;
+use crate::kube_watch::WatcherConfiguration;
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 mod data;
 mod func;
@@ -14,16 +17,18 @@ pub(crate) struct AbiContext {
 pub(crate) struct Abi {}
 
 impl super::Abi for Abi {
-    fn generate_imports(&self, cluster_url: Url, rt_handle: Handle, http_client: reqwest::Client) -> ImportObject {
+    fn generate_imports(&self, watcher_configuration: Arc<Mutex<WatcherConfiguration>>, cluster_url: Url, rt_handle: Handle, http_client: reqwest::Client) -> ImportObject {
         imports! {
             "http-proxy-abi" => {
-                // the func! macro autodetects the signature
                 "request" => func!(func::request_fn(AbiContext {
                     cluster_url,
                     rt_handle,
                     http_client
                 })),
             },
+            "kube-watch-abi" => {
+                "watch" => func!(func::watch_fn(watcher_configuration)),
+            }
         }
     }
 

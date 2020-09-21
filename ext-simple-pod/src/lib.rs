@@ -20,27 +20,22 @@ pub extern "C" fn run() {
     let client = Client::default();
 
     let foos: Api<SimplePod> = Api::namespaced(client.clone(), "default");
-    let inform = Informer::new(foos).params(ListParams::default().timeout(1));
+    let inform = Informer::new(foos).params(ListParams::default());
 
     let pods: Api<Pod> = Api::namespaced(client.clone(), "default");
 
-    loop {
-        let events = inform.poll().expect("Poll error");
-
-        for e in events {
-            match e {
-                Ok(WatchEvent::Added(o)) | Ok(WatchEvent::Modified(o)) => {
-                    reconcile_pod(&pods, &o.name(), &o.spec.image).expect("Reconcile error");
-                }
-                Ok(WatchEvent::Error(e)) => println!("Error event: {:?}", e),
-                Err(e) => println!("Error event: {:?}", e),
-                _ => {}
+    inform.poll(move |e| {
+        match e {
+            WatchEvent::Added(o) | WatchEvent::Modified(o) => {
+                reconcile_pod(pods.clone(), &o.name(), &o.spec.image).expect("Reconcile error");
             }
+            WatchEvent::Error(e) => println!("Error event: {:?}", e),
+            e => println!("Not handled event: {:?}", e)
         }
-    }
+    });
 }
 
-fn reconcile_pod(pods: &Api<Pod>, name: &str, image: &str) -> Result<Pod, kube::Error> {
+fn reconcile_pod(pods: Api<Pod>, name: &str, image: &str) -> Result<Pod, kube::Error> {
     match pods.get(&name) {
         Ok(mut existing) => {
             let existing_image = existing

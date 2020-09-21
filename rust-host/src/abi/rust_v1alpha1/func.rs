@@ -8,6 +8,9 @@ use wasmer_runtime_core::{structures::TypedIndex, types::TableIndex};
 use crate::execution_time;
 use super::AbiContext;
 use tokio::runtime::Handle;
+use crate::kube_watch::{WatcherConfiguration, WatchRequest};
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 pub(crate) fn request_fn(
     abi_context: AbiContext
@@ -96,6 +99,28 @@ pub(crate) fn run_request(
         headers,
         body: response_body.to_vec(),
     }
+}
+
+pub(crate) fn watch_fn(
+    watcher_configuration: Arc<Mutex<WatcherConfiguration>>
+) -> impl Fn(&mut Ctx, WasmPtr<u8, Array>, u32, u32) -> u64 {
+    let f = move |ctx: &mut Ctx, ptr: WasmPtr<u8, Array>, len: u32, allocator_fn: u32| -> u64 {
+        let inner_req_bytes: Vec<u8> = ptr
+            .deref(ctx.memory(0), 0, len)
+            .unwrap()
+            .iter()
+            .map(|c| c.get())
+            .collect();
+
+        let watch_request: WatchRequest = bincode::deserialize(&inner_req_bytes).unwrap();
+
+        let arc = watcher_configuration.clone();
+        let mut config = arc.lock().unwrap();
+        let id = config.register_new_watch(watch_request.clone());
+        info!("Received watch request {:?}, associated id {}", &watch_request, &id);
+        id
+    };
+    f
 }
 
 /// An internal url joiner to deal with the two different interfaces
