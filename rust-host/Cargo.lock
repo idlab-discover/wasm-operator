@@ -126,9 +126,9 @@ dependencies = [
 
 [[package]]
 name = "blake3"
-version = "0.3.5"
+version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59f88a20f7dc23e3896bcbd85add056543c87215de721468b90e0c85d5a9f365"
+checksum = "ce4f9586c9a3151c4b49b19e82ba163dd073614dd057e53c969e1a4db5b52720"
 dependencies = [
  "arrayref",
  "arrayvec",
@@ -335,15 +335,15 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b584a330336237c1eecd3e94266efb216c56ed91225d634cb2991c5f3fd1aeab"
 dependencies = [
- "generic-array 0.14.3",
+ "generic-array 0.14.4",
  "subtle",
 ]
 
 [[package]]
 name = "ctor"
-version = "0.1.15"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39858aa5bac06462d4dd4b9164848eb81ffc4aa5c479746393598fd193afa227"
+checksum = "7fbaabec2c953050352311293be5c6aba8e141ba19d6811862b232d6fd020484"
 dependencies = [
  "quote",
  "syn",
@@ -364,7 +364,7 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3dd60d1080a57a05ab032377049e0591415d2b31afd7028356dbf3cc6dcb066"
 dependencies = [
- "generic-array 0.14.3",
+ "generic-array 0.14.4",
 ]
 
 [[package]]
@@ -653,9 +653,9 @@ dependencies = [
 
 [[package]]
 name = "generic-array"
-version = "0.14.3"
+version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60fb4bb6bba52f78a471264d9a3b7d026cc0af47b22cd2cffbc0b787ca003e63"
+checksum = "501466ecc8a30d1d3b7fc9229b122b2ce8ed6e9d9223f1138d4babb253e51817"
 dependencies = [
  "typenum",
  "version_check",
@@ -849,9 +849,9 @@ dependencies = [
 
 [[package]]
 name = "inventory"
-version = "0.1.7"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "621b50c176968fd3b0bd71f821a28a0ea98db2b5aea966b2fbb8bd1b7d310328"
+checksum = "fedd49de24d8c263613701406611410687148ae8c37cd6452650b250f753a0dd"
 dependencies = [
  "ctor",
  "ghost",
@@ -860,9 +860,9 @@ dependencies = [
 
 [[package]]
 name = "inventory-impl"
-version = "0.1.7"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f99a4111304bade76468d05beab3487c226e4fe4c4de1c4e8f006e815762db73"
+checksum = "ddead8880bc50f57fcd3b5869a7f6ff92570bb4e8f6870c22e2483272f2256da"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1889,9 +1889,9 @@ checksum = "213701ba3370744dcd1a12960caa4843b3d68b4d1c0a5d575e0d65b2ee9d16c0"
 
 [[package]]
 name = "subtle"
-version = "2.2.3"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "502d53007c02d7605a05df1c1a73ee436952781653da5d0bf57ad608f66932c1"
+checksum = "343f3f510c2915908f155e94f17220b19ccfacf2a64a2a5d8004f2c3e311e7fd"
 
 [[package]]
 name = "syn"
@@ -2127,9 +2127,9 @@ checksum = "373c8a200f9e67a0c95e62a4f52fbf80c23b4381c05a17845531982fa99e6b33"
 
 [[package]]
 name = "typetag"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9275125decb5d75fe57ebfe92debd119b15757aae27c56d7cb61ecab871960bc"
+checksum = "83b97b107d25d29de6879ac4f676ac5bfea92bdd01f206e995794493f1fc2e32"
 dependencies = [
  "erased-serde",
  "inventory",
@@ -2140,9 +2140,9 @@ dependencies = [
 
 [[package]]
 name = "typetag-impl"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc232cda3b1d82664153e6c95d1071809aa0f1011f306c3d6989f33d8c6ede17"
+checksum = "3f2466fc87b07b800a5060f89ba579d6882f7a03ac21363e4737764aaf9f99f9"
 dependencies = [
  "proc-macro2",
  "quote",

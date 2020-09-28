@@ -13,8 +13,8 @@ abi-rust-v1alpha1 = []
 
 [dependencies]
 log = "0.4.0"
-wasmer-runtime-core = "0.17.1"
 wasmer-runtime = "0.17.1"
+wasmer-runtime-core = "0.17.1"
 wasmer-singlepass-backend = "0.17.1"
 wasmer-wasi = "0.17.1"
 reqwest = { version = "0.10", default-features = false, features = ["json", "rustls-tls"] }

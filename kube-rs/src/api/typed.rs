@@ -328,7 +328,6 @@ where
             field_selector: lp.field_selector.clone(),
             include_uninitialized: lp.include_uninitialized,
             label_selector: lp.label_selector.clone(),
-            timeout: lp.timeout,
             allow_bookmarks: lp.allow_bookmarks
         };
 

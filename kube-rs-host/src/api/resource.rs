@@ -3,7 +3,7 @@ use crate::{api::DynamicResource, Error, Result};
 use inflector::string::pluralize::to_plural;
 
 /// A Kubernetes resource that can be accessed through the API
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Resource {
     /// The API version of the resource.
     ///

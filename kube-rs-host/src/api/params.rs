@@ -3,7 +3,7 @@ use crate::{Error, Result};
 use serde::Serialize;
 
 /// Common query parameters used in watch/list/delete calls on collections
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq, Eq, Hash, Debug)]
 #[allow(missing_docs)]
 pub struct ListParams {
     /// A selector to restrict the list of returned objects by their labels.

@@ -165,7 +165,6 @@ pub struct WatchParams {
     pub field_selector: Option<String>,
     pub include_uninitialized: bool,
     pub label_selector: Option<String>,
-    pub timeout: Option<u32>,
     pub allow_bookmarks: bool,
 }
 

@@ -1,27 +1,24 @@
 #[macro_use]
 extern crate log;
 
-mod abi;
-mod utils;
-mod modules;
-mod kube_watch;
-
-use kube::{Config, Client};
-use wasmer_runtime::{compile_with, error, Func, WasmPtr, Array, Instance};
-use wasmer_singlepass_backend::SinglePassCompiler;
-use std::{env, thread};
+use kube::{Client, Config};
+use std::env;
 use std::path::PathBuf;
-
-use crate::abi::Abi;
-use crate::modules::ModuleMetadata;
-use std::rc::Rc;
-use crate::kube_watch::WatcherConfiguration;
-use futures::{TryStreamExt, StreamExt};
+use futures::StreamExt;
 use std::collections::HashMap;
-use std::sync::{mpsc, Arc, Mutex};
-use serde::de::DeserializeOwned;
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::task;
 
-fn main() -> error::Result<()> {
+mod abi;
+mod kube_watch;
+mod modules;
+mod utils;
+
+use crate::abi::AbiConfig;
+use crate::kube_watch::{Dispatcher, WatchCommand, Watchers};
+use crate::modules::{ControllerModule, ControllerModuleMetadata};
+
+fn main() {
     env_logger::init();
 
     // Bootstrap tokio runtime and kube-rs-async config/client
@@ -46,128 +43,78 @@ fn main() -> error::Result<()> {
     }
     let path = PathBuf::from(args.remove(1));
     info!("Going to load from {}", path.to_str().unwrap());
-    let mods = modules::load_modules_from_dir(path)
+    let mods = ControllerModuleMetadata::load_modules_from_dir(path)
         .expect("Cannot load the modules from the provided dir");
 
-    let mut joins = Vec::with_capacity(mods.len());
+    runtime.block_on(async {
+        let mut joins = Vec::with_capacity(mods.len());
 
-    for m in mods {
-        let (path, mm, wasm_bytes) = m;
-        let url = cluster_url.clone();
-        let rt_handle = runtime.handle().clone();
-        let client = client.clone();
-        let kube_client = kube_client.clone();
-        let j = thread::spawn(move ||
-            start_controller(path, mm, wasm_bytes, url,rt_handle, client, kube_client)
-        );
-        joins.push(j);
-    }
+        let (watch_command_tx, watch_command_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (watch_event_tx, watch_event_rx) = tokio::sync::mpsc::channel(10);
 
-    info!("Joining started controllers");
+        info!("Starting controllers");
+        for (path, mm, wasm_bytes) in mods {
+            let url = cluster_url.clone();
+            let client = client.clone();
+            let tx = watch_command_tx.clone();
 
-    let joined: Vec<(String, Instance, Vec<(u64, http::Request<Vec<u8>>)>)> = joins.into_iter()
-        .map(|j| j.join().expect("thread join"))
-        .collect();
-
-    let mut instances = HashMap::new();
-    let mut watch_to_start = Vec::with_capacity(joined.len());
-
-    for (instance_name, instance, watch_confs) in joined {
-        instances.insert(instance_name.clone(), instance);
-        watch_to_start.push((instance_name, watch_confs))
-    }
-
-    let (tx, rx) = mpsc::channel();
-
-    info!("Spawning watchers");
-
-    // Spawn watchers
-    for (instance_name, watch_reqs) in watch_to_start {
-        for (id, req) in watch_reqs {
-            let kube_client = kube_client.clone();
-            let tx = tx.clone();
-            let instance_name = instance_name.clone();
-
-            info!("Starting watch {} for controller {}", id, &instance_name);
-
-            runtime.spawn(async move {
-                let mut stream = kube_client.request_events(req).await
-                    .expect("watch events stream")
-                    .boxed();
-                while let Some(event) = stream.try_next().await.expect("watch event") {
-                    info!("Sending new event to instance {} with event id {}", &instance_name, id);
-                    tx.send((instance_name.clone(), id, event)).unwrap();
-                }
-            });
-        }
-    }
-
-    info!("Started listening events channel");
-
-    // Loop on the rx channel
-    for (instance_name, event_id, event) in rx {
-        let instance = instances.get(&instance_name).unwrap();
-        let allocation_size: u32 = event.len() as u32;
-
-        let allocate_fn: Func<u32, u32> = instance.exports.get("allocate").unwrap();
-
-        let allocation_ptr: u32 = allocate_fn.call(allocation_size).expect("allocation");
-        let allocation_wasm_ptr: WasmPtr<u8, Array> = WasmPtr::new(allocation_ptr);
-        let memory_cell = allocation_wasm_ptr
-            .deref(instance.context().memory(0), 0, allocation_size)
-            .expect("Unable to retrieve memory cell to write event");
-        for (i, b) in event.iter().enumerate() {
-            memory_cell[i].set(*b);
+            joins.push(task::spawn_blocking(move || {
+                info!(
+                    "Starting module loaded from '{}' with meta {:?}",
+                    path.to_str().unwrap(),
+                    mm
+                );
+                start_controller(mm, wasm_bytes, url, client, tx)
+            }));
         }
 
-        let run_fn: Func<(u64, u32, u32), ()> = instance.exports.get("on_event").unwrap();
-        run_fn
-            .call(event_id, allocation_ptr, allocation_size)
-            .expect("Something went wrong while invoking run");
-    }
+        debug!("Joining started controllers");
 
-    Ok(())
+        let controllers = futures::future::join_all(joins)
+            .await
+            .into_iter()
+            .flat_map(|r| r.into_iter())
+            .map(|r| r.map(|module| (module.name().to_string(), module)))
+            .collect::<anyhow::Result<HashMap<String, ControllerModule>>>()
+            .expect("All controllers started correctly");
+
+        tokio::spawn(Watchers::start(
+            watch_command_rx,
+            watch_event_tx,
+            kube_client,
+        ));
+
+        tokio::spawn(Dispatcher::start(controllers, watch_event_rx));
+
+        tokio::signal::ctrl_c().await.unwrap();
+        info!("Closing")
+    });
 }
 
-fn start_controller(path: PathBuf, mm: ModuleMetadata, wasm_bytes: Vec<u8>, cluster_url: url::Url, rt_handle: tokio::runtime::Handle, http_client: reqwest::Client, kube_client: kube::Client) -> (String, wasmer_runtime::Instance, Vec<(u64, http::Request<Vec<u8>>)>) {
-    info!("Starting module loaded from {} with meta {:?}", path.to_str().unwrap(), mm);
+fn start_controller(
+    module_meta: ControllerModuleMetadata,
+    wasm_bytes: Vec<u8>,
+    cluster_url: url::Url,
+    http_client: reqwest::Client,
+    watch_command_sender: UnboundedSender<WatchCommand>,
+) -> anyhow::Result<ControllerModule> {
+    let config = AbiConfig {
+        cluster_url,
+        http_client,
+        watch_command_sender,
+    };
 
-    // Compile the module
-    let (module, duration) = execution_time!({
-            compile_with(&wasm_bytes, &SinglePassCompiler::new())
-              .expect("wasm compilation")
-        });
-    info!("Compilation time '{}' duration: {} ms", &mm.name, duration.as_millis());
+    let module_name = module_meta.name.clone();
 
-    // get the version of the WASI module in a non-strict way, meaning we're
-    // allowed to have extra imports
-    let wasi_version = wasmer_wasi::get_wasi_version(&module, false)
-        .expect("WASI version detected from Wasm module");
-
-    // Resolve abi
-    let abi = mm.abi.get_abi();
-
-    // WASI imports
-    let mut base_imports = wasmer_wasi::generate_import_object_for_version(
-        wasi_version,
-        vec![],
-        vec![],
-        vec![],
-        vec![],
+    let (module, duration) =
+        execution_time!({ ControllerModule::compile(module_meta, wasm_bytes, config)? });
+    info!(
+        "Compilation time '{}' duration: {} ms",
+        &module_name,
+        duration.as_millis()
     );
 
-    let watcher_configuration = Arc::new(Mutex::new(WatcherConfiguration::new()));
+    module.start()?;
 
-    base_imports.extend(abi.generate_imports(Arc::clone(&watcher_configuration), cluster_url, rt_handle, http_client));
-
-    // Compile our webassembly into an `Instance`.
-    let instance = module
-        .instantiate(&base_imports)
-        .expect("Failed to instantiate wasm module");
-
-    info!("Starting controller '{}'", &mm.name);
-    abi.start_controller(&instance);
-
-    let config = watcher_configuration.lock().unwrap();
-    (mm.name, instance, config.generate_watch_requests())
+    Ok(module)
 }
