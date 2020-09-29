@@ -70,7 +70,7 @@ impl super::Abi for Abi {
 
         instance
             .exports
-            .get::<Func<(u64, u32, u32), ()>>("on_event")?
+            .get::<Func<(u64, u32, u32), ()>>("wakeup_stream")?
             .call(event_id, memory_location_ptr, memory_location_size as u32)
             .unwrap(); //TODO better error management
 
