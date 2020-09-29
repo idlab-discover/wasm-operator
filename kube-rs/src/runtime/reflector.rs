@@ -1,9 +1,11 @@
 use crate::{
-    api::{Api, ListParams, Meta, WatchEvent}, Result
+    api::{Api, ListParams, Meta, WatchEvent},
+    Error, Result,
 };
+use futures::{future::FutureExt, lock::Mutex, pin_mut, TryStreamExt};
 use serde::de::DeserializeOwned;
 
-use std::{collections::BTreeMap, sync::Arc, sync::Mutex};
+use std::{collections::BTreeMap, sync::Arc};
 
 /// A reflection of state for a Kubernetes ['Api'] resource
 ///
@@ -18,9 +20,10 @@ use std::{collections::BTreeMap, sync::Arc, sync::Mutex};
 ///
 /// The internal state is exposed readably through a getter.
 #[derive(Clone)]
+#[deprecated(note = "Replaced by kube_runtime::reflector", since = "0.38.0")]
 pub struct Reflector<K>
 where
-    K: Clone + DeserializeOwned + Meta + 'static,
+    K: Clone + DeserializeOwned + Meta,
 {
     state: Arc<Mutex<State<K>>>,
     params: ListParams,
@@ -47,23 +50,29 @@ where
     }
 
     /// A single poll call to modify the internal state
-    pub fn poll(&self) -> Result<()> {
+    async fn poll(&self) -> Result<()> {
         let kind = &self.api.resource.kind;
-        let resource_version = self.state.lock().unwrap().version.clone();
+        let resource_version = self.state.lock().await.version.clone();
         trace!("Polling {} from resourceVersion={}", kind, resource_version);
-        self.api.watch(&self.params, &resource_version, |ev| {
-            let mut state = self.state.lock().unwrap();
+        let stream = self.api.watch(&self.params, &resource_version).await?;
+        pin_mut!(stream);
+
+        // For every event, modify our state
+        while let Some(ev) = stream.try_next().await? {
+            let mut state = self.state.lock().await;
             // Informer-like version tracking:
             match &ev {
-                WatchEvent::Added(o)
-                | WatchEvent::Modified(o)
-                | WatchEvent::Deleted(o)
-                | WatchEvent::Bookmark(o) => {
+                WatchEvent::Added(o) | WatchEvent::Modified(o) | WatchEvent::Deleted(o) => {
                     // always store the last seen resourceVersion
                     if let Some(nv) = Meta::resource_ver(o) {
                         trace!("Updating reflector version for {} to {}", kind, nv);
                         state.version = nv.clone();
                     }
+                }
+                WatchEvent::Bookmark(bm) => {
+                    let rv = &bm.metadata.resource_version;
+                    trace!("Updating reflector version for {} to {}", kind, rv);
+                    state.version = rv.clone();
                 }
                 _ => {}
             }
@@ -73,40 +82,38 @@ where
             match ev {
                 WatchEvent::Added(o) => {
                     debug!("Adding {} to {}", Meta::name(&o), kind);
-                    data.entry(ObjectId::key_for(&o))
-                        .or_insert_with(|| o.clone());
+                    data.entry(ObjectId::key_for(&o)).or_insert_with(|| o.clone());
                 }
                 WatchEvent::Modified(o) => {
                     debug!("Modifying {} in {}", Meta::name(&o), kind);
-                    data.entry(ObjectId::key_for(&o))
-                        .and_modify(|e| *e = o.clone());
+                    data.entry(ObjectId::key_for(&o)).and_modify(|e| *e = o.clone());
                 }
                 WatchEvent::Deleted(o) => {
                     debug!("Removing {} from {}", Meta::name(&o), kind);
                     data.remove(&ObjectId::key_for(&o));
                 }
-                WatchEvent::Bookmark(o) => {
-                    debug!("Bookmarking {} from {}", Meta::name(&o), kind);
+                WatchEvent::Bookmark(bm) => {
+                    debug!("Bookmarking {}", &bm.types.kind);
                 }
                 WatchEvent::Error(e) => {
                     warn!("Failed to watch {}: {:?}", kind, e);
+                    return Err(Error::Api(e));
                 }
             }
-        });
-
+        }
         Ok(())
     }
 
     /// Reset the state of the underlying informer and clear the cache
-    pub fn reset(&self) -> Result<()> {
+    pub async fn reset(&self) -> Result<()> {
         trace!("Resetting {}", self.api.resource.kind);
         // Simplified for k8s >= 1.16
         //*self.state.lock().await = Default::default();
         //self.informer.reset().await
 
         // For now:
-        let (data, version) = self.get_full_resource_entries()?;
-        *self.state.lock().unwrap() = State { data, version };
+        let (data, version) = self.get_full_resource_entries().await?;
+        *self.state.lock().await = State { data, version };
         Ok(())
     }
 
@@ -114,8 +121,8 @@ where
     ///
     /// Needed to do an initial list operation because of https://github.com/clux/kube-rs/issues/219
     /// Soon, this goes away as we drop support for k8s < 1.16
-    fn get_full_resource_entries(&self) -> Result<(Cache<K>, String)> {
-        let res = self.api.list(&self.params)?;
+    async fn get_full_resource_entries(&self) -> Result<(Cache<K>, String)> {
+        let res = self.api.list(&self.params).await?;
         let version = res.metadata.resource_version.unwrap_or_default();
         trace!(
             "Got {} {} at resourceVersion={:?}",
@@ -140,8 +147,8 @@ where
     /// Read data for users of the reflector
     ///
     /// This is instant if you are reading and writing from the same context.
-    pub fn state(&self) -> Result<Vec<K>> {
-        let state = self.state.lock().unwrap();
+    pub async fn state(&self) -> Result<Vec<K>> {
+        let state = self.state.lock().await;
         Ok(state.data.values().cloned().collect::<Vec<K>>())
     }
 
@@ -150,13 +157,13 @@ where
     /// Will read in the configured namespace, or globally on non-namespaced reflectors.
     /// If you are using a non-namespaced resources with name clashes,
     /// Try [`Reflector::get_within`] instead.
-    pub fn get(&self, name: &str) -> Result<Option<K>> {
+    pub async fn get(&self, name: &str) -> Result<Option<K>> {
         let id = ObjectId {
             name: name.into(),
             namespace: self.api.resource.namespace.clone(),
         };
 
-        Ok(self.state.lock().unwrap().data.get(&id).map(Clone::clone))
+        Ok(self.state.lock().await.data.get(&id).map(Clone::clone))
     }
 
     /// Read a single entry by name within a specific namespace
@@ -164,12 +171,12 @@ where
     /// This is a more specific version of [`Reflector::get`].
     /// This is only useful if your reflector is configured to poll across namespaces.
     /// TODO: remove once #194 is resolved
-    pub fn get_within(&self, name: &str, ns: &str) -> Result<Option<K>> {
+    pub async fn get_within(&self, name: &str, ns: &str) -> Result<Option<K>> {
         let id = ObjectId {
             name: name.into(),
             namespace: Some(ns.into()),
         };
-        Ok(self.state.lock().unwrap().data.get(&id).map(Clone::clone))
+        Ok(self.state.lock().await.data.get(&id).map(Clone::clone))
     }
 }
 

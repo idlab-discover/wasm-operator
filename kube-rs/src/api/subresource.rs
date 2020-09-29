@@ -1,3 +1,5 @@
+use bytes::Bytes;
+use futures::Stream;
 use serde::de::DeserializeOwned;
 
 use crate::{
@@ -15,21 +17,21 @@ where
     K: Clone + DeserializeOwned,
 {
     /// Fetch the scale subresource
-    pub fn get_scale(&self, name: &str) -> Result<Scale> {
+    pub async fn get_scale(&self, name: &str) -> Result<Scale> {
         let req = self.resource.get_scale(name)?;
-        self.client.request::<Scale>(req)
+        self.client.request::<Scale>(req).await
     }
 
     /// Update the scale subresource
-    pub fn patch_scale(&self, name: &str, pp: &PatchParams, patch: Vec<u8>) -> Result<Scale> {
+    pub async fn patch_scale(&self, name: &str, pp: &PatchParams, patch: Vec<u8>) -> Result<Scale> {
         let req = self.resource.patch_scale(name, &pp, patch)?;
-        self.client.request::<Scale>(req)
+        self.client.request::<Scale>(req).await
     }
 
     /// Replace the scale subresource
-    pub fn replace_scale(&self, name: &str, pp: &PostParams, data: Vec<u8>) -> Result<Scale> {
+    pub async fn replace_scale(&self, name: &str, pp: &PostParams, data: Vec<u8>) -> Result<Scale> {
         let req = self.resource.replace_scale(name, &pp, data)?;
-        self.client.request::<Scale>(req)
+        self.client.request::<Scale>(req).await
     }
 }
 
@@ -47,9 +49,9 @@ where
     /// Get the named resource with a status subresource
     ///
     /// This actually returns the whole K, with metadata, and spec.
-    pub fn get_status(&self, name: &str) -> Result<K> {
+    pub async fn get_status(&self, name: &str) -> Result<K> {
         let req = self.resource.get_status(name)?;
-        self.client.request::<K>(req)
+        self.client.request::<K>(req).await
     }
 
     /// Patch fields on the status object
@@ -61,23 +63,23 @@ where
     /// use k8s_openapi::api::batch::v1::Job;
     /// #[tokio::main]
     /// async fn main() -> Result<(), kube::Error> {
-    ///     let client = Client::try_default()?;
+    ///     let client = Client::try_default().await?;
     ///     let jobs: Api<Job> = Api::namespaced(client, "apps");
-    ///     let mut j = jobs.get("baz")?;
+    ///     let mut j = jobs.get("baz").await?;
     ///     let pp = PatchParams::default(); // json merge patch
     ///     let data = serde_json::json!({
     ///         "status": {
     ///             "succeeded": 2
     ///         }
     ///     });
-    ///     let o = jobs.patch_status("baz", &pp, serde_json::to_vec(&data)?)?;
+    ///     let o = jobs.patch_status("baz", &pp, serde_json::to_vec(&data)?).await?;
     ///     assert_eq!(o.status.unwrap().succeeded, Some(2));
     ///     Ok(())
     /// }
     /// ```
-    pub fn patch_status(&self, name: &str, pp: &PatchParams, patch: Vec<u8>) -> Result<K> {
+    pub async fn patch_status(&self, name: &str, pp: &PatchParams, patch: Vec<u8>) -> Result<K> {
         let req = self.resource.patch_status(name, &pp, patch)?;
-        self.client.request::<K>(req)
+        self.client.request::<K>(req).await
     }
 
     /// Replace every field on the status object
@@ -90,18 +92,18 @@ where
     /// use k8s_openapi::api::batch::v1::{Job, JobStatus};
     /// #[tokio::main]
     /// async fn main() -> Result<(), kube::Error> {
-    ///     let client = Client::try_default()?;
+    ///     let client = Client::try_default().await?;
     ///     let jobs: Api<Job> = Api::namespaced(client, "apps");
-    ///     let mut o = jobs.get_status("baz")?; // retrieve partial object
+    ///     let mut o = jobs.get_status("baz").await?; // retrieve partial object
     ///     o.status = Some(JobStatus::default()); // update the job part
     ///     let pp = PostParams::default();
-    ///     let o = jobs.replace_status("baz", &pp, serde_json::to_vec(&o)?)?;
+    ///     let o = jobs.replace_status("baz", &pp, serde_json::to_vec(&o)?).await?;
     ///     Ok(())
     /// }
     /// ```
-    pub fn replace_status(&self, name: &str, pp: &PostParams, data: Vec<u8>) -> Result<K> {
+    pub async fn replace_status(&self, name: &str, pp: &PostParams, data: Vec<u8>) -> Result<K> {
         let req = self.resource.replace_status(name, &pp, data)?;
-        self.client.request::<K>(req)
+        self.client.request::<K>(req).await
     }
 }
 
@@ -186,10 +188,7 @@ fn log_path() {
     let mut lp = LogParams::default();
     lp.container = Some("blah".into());
     let req = r.logs("foo", &lp).unwrap();
-    assert_eq!(
-        req.uri(),
-        "/api/v1/namespaces/ns/pods/foo/log?&container=blah"
-    );
+    assert_eq!(req.uri(), "/api/v1/namespaces/ns/pods/foo/log?&container=blah");
 }
 
 /// Marker trait for objects that has logs
@@ -202,8 +201,8 @@ where
     K: Clone + DeserializeOwned + LoggingObject,
 {
     /// Fetch logs as a string
-    pub fn logs(&self, name: &str, lp: &LogParams) -> Result<String> {
+    pub async fn logs(&self, name: &str, lp: &LogParams) -> Result<String> {
         let req = self.resource.logs(name, lp)?;
-        Ok(self.client.request_text(req)?)
+        Ok(self.client.request_text(req).await?)
     }
 }

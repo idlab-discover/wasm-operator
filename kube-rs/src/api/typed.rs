@@ -1,6 +1,6 @@
 use either::Either;
 use serde::{de::DeserializeOwned, Serialize};
-use std::marker::PhantomData;
+use std::iter;
 
 use crate::{
     api::{
@@ -10,8 +10,9 @@ use crate::{
     Result,
     abi
 };
-use crate::api::resource::WatchParams;
 use crate::api::WatchEvent;
+use futures::{Stream, StreamExt};
+use crate::api::params::WatchParams;
 
 /// An easy Api interaction helper
 ///
@@ -30,7 +31,11 @@ pub struct Api<K> {
     /// The client to use (from this library)
     pub(crate) client: Client,
     /// Underlying Object unstored
-    pub(crate) phantom: PhantomData<K>,
+    ///
+    /// Note: Using `iter::Empty` over `PhantomData`, because we never actually keep any
+    /// `K` objects, so `Empty` better models our constraints (in particular, `Empty<K>`
+    /// is `Send`, even if `K` may not be).
+    pub(crate) phantom: iter::Empty<K>,
 }
 
 /// Expose same interface as Api for controlling scope/group/versions/ns
@@ -44,7 +49,7 @@ where
         Self {
             resource,
             client,
-            phantom: PhantomData,
+            phantom: iter::empty(),
         }
     }
 
@@ -54,7 +59,7 @@ where
         Self {
             resource,
             client,
-            phantom: PhantomData,
+            phantom: iter::empty(),
         }
     }
 
@@ -67,7 +72,7 @@ where
 /// PUSH/PUT/POST/GET abstractions
 impl<K> Api<K>
 where
-    K: Clone + DeserializeOwned + Meta + 'static,
+    K: Clone + DeserializeOwned + Meta,
 {
     /// Get a named resource
     ///
@@ -82,9 +87,9 @@ where
     ///     Ok(())
     /// }
     /// ```
-    pub fn get(&self, name: &str) -> Result<K> {
+    pub async fn get(&self, name: &str) -> Result<K> {
         let req = self.resource.get(name)?;
-        self.client.request::<K>(req)
+        self.client.request::<K>(req).await
     }
 
     /// Get a list of resources
@@ -105,9 +110,9 @@ where
     ///     Ok(())
     /// }
     /// ```
-    pub fn list(&self, lp: &ListParams) -> Result<ObjectList<K>> {
+    pub async fn list(&self, lp: &ListParams) -> Result<ObjectList<K>> {
         let req = self.resource.list(&lp)?;
-        self.client.request::<ObjectList<K>>(req)
+        self.client.request::<ObjectList<K>>(req).await
     }
 
     /// Create a resource
@@ -126,13 +131,13 @@ where
     ///   - Tradeoff between the two
     ///   - Easy partially filling of native k8s-openapi types (most fields optional)
     ///   - Partial safety against runtime errors (at least you must write valid json)
-    pub fn create(&self, pp: &PostParams, data: &K) -> Result<K>
+    pub async fn create(&self, pp: &PostParams, data: &K) -> Result<K>
     where
         K: Serialize,
     {
         let bytes = serde_json::to_vec(&data)?;
         let req = self.resource.create(&pp, bytes)?;
-        self.client.request::<K>(req)
+        self.client.request::<K>(req).await
     }
 
     /// Delete a named resource
@@ -141,14 +146,14 @@ where
     /// When you get a `Status` via `Right`, this should be a a 2XX style
     /// confirmation that the object being gone.
     ///
-    /// 4XX and 5XX status types are returned as an `Err(kube-rs-async::Error::Api)`
+    /// 4XX and 5XX status types are returned as an `Err(kube::Error::Api)`
     ///
     /// ```no_run
-    /// use kube-rs-async::{api::{Api, DeleteParams}, Client};
+    /// use kube::{api::{Api, DeleteParams}, Client};
     /// use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1beta1 as apiexts;
     /// use apiexts::CustomResourceDefinition;
     /// #[tokio::main]
-    /// async fn main() -> Result<(), kube-rs-async::Error> {
+    /// async fn main() -> Result<(), kube::Error> {
     ///     let client = Client::try_default().await?;
     ///     let crds: Api<CustomResourceDefinition> = Api::all(client);
     ///     crds.delete("foos.clux.dev", &DeleteParams::default()).await?
@@ -157,9 +162,9 @@ where
     ///     Ok(())
     /// }
     /// ```
-    pub fn delete(&self, name: &str, dp: &DeleteParams) -> Result<Either<K, Status>> {
+    pub async fn delete(&self, name: &str, dp: &DeleteParams) -> Result<Either<K, Status>> {
         let req = self.resource.delete(name, &dp)?;
-        self.client.request_status::<K>(req)
+        self.client.request_status::<K>(req).await
     }
 
     /// Delete a collection of resources
@@ -168,16 +173,16 @@ where
     /// When you get a `Status` via `Right`, this should be a a 2XX style
     /// confirmation that the object being gone.
     ///
-    /// 4XX and 5XX status types are returned as an `Err(kube-rs-async::Error::Api)`
+    /// 4XX and 5XX status types are returned as an `Err(kube::Error::Api)`
     ///
     /// ```no_run
-    /// use kube-rs-async::{api::{Api, ListParams, Meta}, Client};
+    /// use kube::{api::{Api, DeleteParams, ListParams, Meta}, Client};
     /// use k8s_openapi::api::core::v1::Pod;
     /// #[tokio::main]
-    /// async fn main() -> Result<(), kube-rs-async::Error> {
+    /// async fn main() -> Result<(), kube::Error> {
     ///     let client = Client::try_default().await?;
     ///     let pods: Api<Pod> = Api::namespaced(client, "apps");
-    ///     match pods.delete_collection(&ListParams::default()).await? {
+    ///     match pods.delete_collection(&DeleteParams::default(), &ListParams::default()).await? {
     ///         either::Left(list) => {
     ///             let names: Vec<_> = list.iter().map(Meta::name).collect();
     ///             println!("Deleting collection of pods: {:?}", names);
@@ -189,9 +194,13 @@ where
     ///     Ok(())
     /// }
     /// ```
-    pub fn delete_collection(&self, lp: &ListParams) -> Result<Either<ObjectList<K>, Status>> {
-        let req = self.resource.delete_collection(&lp)?;
-        self.client.request_status::<ObjectList<K>>(req)
+    pub async fn delete_collection(
+        &self,
+        dp: &DeleteParams,
+        lp: &ListParams,
+    ) -> Result<Either<ObjectList<K>, Status>> {
+        let req = self.resource.delete_collection(&dp, &lp)?;
+        self.client.request_status::<ObjectList<K>>(req).await
     }
 
     /// Patch a resource a subset of its properties
@@ -213,10 +222,10 @@ where
     /// use kube::{api::{Api, PatchParams, Meta}, Client};
     /// use k8s_openapi::api::core::v1::Pod;
     /// #[tokio::main]
-    /// async fn main() -> Result<(), anyhow::Error> {
+    /// async fn main() -> Result<(), kube::Error> {
     ///     let client = Client::try_default().await?;
     ///     let pods: Api<Pod> = Api::namespaced(client, "apps");
-    ///     let ss_apply = PatchParams::default_apply().force();
+    ///     let ss_apply = PatchParams::apply("myapp").force();
     ///     let patch = serde_yaml::to_vec(&serde_json::json!({
     ///         "apiVersion": "v1",
     ///         "kind": "Pod",
@@ -226,16 +235,16 @@ where
     ///         "spec": {
     ///             "activeDeadlineSeconds": 5
     ///         }
-    ///     }))?;
+    ///     })).unwrap();
     ///     let o_patched = pods.patch("blog", &ss_apply, patch).await?;
     ///     Ok(())
     /// }
     /// ```
     ///
     /// Note that you can still create the data any way you like (like with `serde_json`).
-    pub fn patch(&self, name: &str, pp: &PatchParams, patch: Vec<u8>) -> Result<K> {
+    pub async fn patch(&self, name: &str, pp: &PatchParams, patch: Vec<u8>) -> Result<K> {
         let req = self.resource.patch(name, &pp, patch)?;
-        self.client.request::<K>(req)
+        self.client.request::<K>(req).await
     }
 
     /// Replace a resource entirely with a new one
@@ -282,13 +291,13 @@ where
     /// ```
     ///
     /// Consider mutating the result of `api.get` rather than recreating it.
-    pub fn replace(&self, name: &str, pp: &PostParams, data: &K) -> Result<K>
+    pub async fn replace(&self, name: &str, pp: &PostParams, data: &K) -> Result<K>
     where
         K: Serialize,
     {
         let bytes = serde_json::to_vec(&data)?;
         let req = self.resource.replace(name, &pp, bytes)?;
-        self.client.request::<K>(req)
+        self.client.request::<K>(req).await
     }
 
     /// Watch a list of resources
@@ -320,21 +329,24 @@ where
     ///     Ok(())
     /// }
     /// ```
-    pub fn watch<F: 'static + Fn(WatchEvent<K>) + Send>(&self, lp: &ListParams, version: &str, callback: F) {
+    pub async fn watch(
+        &self,
+        lp: &ListParams,
+        version: &str,
+    ) -> Result<impl Stream<Item = Result<WatchEvent<K>>>> {
         //TODO(slinkydeveloper) this conversion is made to avoid changing the signature of this method
 
-        let watch_params = WatchParams{
+        let watch_params = WatchParams {
             resource_version: String::from(version),
             field_selector: lp.field_selector.clone(),
-            include_uninitialized: lp.include_uninitialized,
+            include_uninitialized: false,
             label_selector: lp.label_selector.clone(),
             allow_bookmarks: lp.allow_bookmarks
         };
 
-        abi::register_watch(
-            self.resource.clone(),
-            watch_params,
-            move |vec| callback(serde_json::from_slice(&vec).unwrap())
+        Ok(
+            abi::register_watch(self.resource.clone(), watch_params)
+                .map(|vec| Ok(serde_json::from_slice(&vec).unwrap()))
         )
     }
 }

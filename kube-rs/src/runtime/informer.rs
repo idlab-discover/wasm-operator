@@ -1,9 +1,11 @@
 use crate::{
     api::{Api, ListParams, Meta, WatchEvent},
+    Result,
 };
 
+use futures::{lock::Mutex, Stream, StreamExt};
 use serde::de::DeserializeOwned;
-use std::{sync::Arc, sync::Mutex, thread, time::Duration};
+use std::{sync::Arc};
 
 /// An event informer for a Kubernetes ['Api'] resource
 ///
@@ -22,6 +24,7 @@ use std::{sync::Arc, sync::Mutex, thread, time::Duration};
 /// Because of https://github.com/clux/kube-rs/issues/219 we recommend you use this
 /// with kubernetes >= 1.16 and watch bookmarks enabled.
 #[derive(Clone)]
+#[deprecated(note = "Replaced by kube_runtime::watcher", since = "0.38.0")]
 pub struct Informer<K>
 where
     K: Clone + DeserializeOwned + Meta,
@@ -34,7 +37,7 @@ where
 
 impl<K> Informer<K>
 where
-    K: Clone + DeserializeOwned + Meta + 'static,
+    K: Clone + DeserializeOwned + Meta,
 {
     /// Create an informer on an api resource
     pub fn new(api: Api<K>) -> Self {
@@ -60,25 +63,27 @@ where
     /// Controllers/finalizers/ownerReferences are the preferred ways
     /// to garbage collect related resources.
     pub fn set_version(self, v: String) -> Self {
-        debug!(
-            "Setting Informer version for {} to {}",
-            self.api.resource.kind, v
-        );
+        debug!("Setting Informer version for {} to {}", self.api.resource.kind, v);
 
-        *self.version.lock().unwrap() = v;
+        // We need to block on this as our mutex needs go be async compatible
+        futures::executor::block_on(async {
+            *self.version.lock().await = v;
+        });
         self
     }
 
     /// Reset the resourceVersion to 0
     ///
     /// This will trigger new Added events for all existing resources
-    pub fn reset(&self) {
-        *self.version.lock().unwrap() = 0.to_string();
+    pub async fn reset(&self) {
+        *self.version.lock().await = 0.to_string();
     }
 
     /// Return the current version
     pub fn version(&self) -> String {
-        self.version.lock().unwrap().clone()
+        // We need to block on a future here quickly
+        // to get a lock on our version
+        futures::executor::block_on(async { self.version.lock().await.clone() })
     }
 
     /// Start a single watch stream
@@ -87,23 +92,20 @@ where
     /// You should always poll. When this call ends, call it again.
     /// Do not call it from more than one context.
     ///
-    /// All real errors are bubbled up, as are WatchEvent::Error instances.
+    /// All real errors are bubbled up, as are WachEvent::Error instances.
     /// If we are desynced we force a 10s wait 10s before starting the poll.
     ///
     /// If you need to track the `resourceVersion` you can use `Informer::version()`.
-    pub fn poll<F: 'static + Fn(WatchEvent<K>) + Send>(&self, callback: F) {
+    pub async fn poll(&self) -> Result<impl Stream<Item = Result<WatchEvent<K>>>> {
         trace!("Watching {}", self.api.resource.kind);
 
         // First check if we need to backoff or reset our resourceVersion from last time
         {
-            let mut needs_resync = self.needs_resync.lock().unwrap();
+            let mut needs_resync = self.needs_resync.lock().await;
             if *needs_resync {
-                // Try again in a bit
-                let dur = Duration::from_secs(10);
-                thread::sleep(dur);
                 // If we are outside history, start over from latest
                 if *needs_resync {
-                    self.reset();
+                    self.reset().await;
                 }
                 *needs_resync = false;
             }
@@ -114,32 +116,45 @@ where
         let needs_resync = self.needs_resync.clone();
 
         // Start watching from our previous watch point
-        let resource_version = self.version.lock().unwrap().clone();
-        self.api.watch(&self.params, &resource_version, move |event| {
+        let resource_version = self.version.lock().await.clone();
+        let stream = self.api.watch(&self.params, &resource_version).await?;
+
+        // Intercept stream elements to update internal resourceVersion
+        let newstream = stream.then(move |event| {
             // Clone our Arcs for each event
             let needs_resync = needs_resync.clone();
             let version = version.clone();
-
-            // Check if we need to update our version based on the incoming events
-            match &event {
-                WatchEvent::Added(o)
-                | WatchEvent::Modified(o)
-                | WatchEvent::Deleted(o)
-                | WatchEvent::Bookmark(o) => {
-                    // always store the last seen resourceVersion
-                    if let Some(nv) = Meta::resource_ver(o) {
-                        *version.lock().unwrap() = nv.clone();
+            async move {
+                // Check if we need to update our version based on the incoming events
+                match &event {
+                    Ok(WatchEvent::Added(o)) | Ok(WatchEvent::Modified(o)) | Ok(WatchEvent::Deleted(o)) => {
+                        // always store the last seen resourceVersion
+                        if let Some(nv) = Meta::resource_ver(o) {
+                            *version.lock().await = nv.clone();
+                        }
                     }
-                }
-                WatchEvent::Error(e) => {
-                    // 410 Gone => we need to restart from latest next call
-                    if e.code == 410 {
-                        warn!("Stream desynced: {:?}", e);
-                        *needs_resync.lock().unwrap() = true;
+                    Ok(WatchEvent::Bookmark(bm)) => {
+                        // always store the last seen resourceVersion
+                        *version.lock().await = bm.metadata.resource_version.clone();
                     }
-                }
-            };
-            callback(event)
+                    Ok(WatchEvent::Error(e)) => {
+                        // 410 Gone => we need to restart from latest next call
+                        if e.code == 410 {
+                            warn!("Stream desynced: {:?}", e);
+                            *needs_resync.lock().await = true;
+                        }
+                    }
+                    Err(e) => {
+                        // All we seem to get here are:
+                        // - EOFs (mostly solved with timeout enforcement + resyncs)
+                        // - serde errors (bad struct use, on app side)
+                        // Not much we can do about these here.
+                        warn!("Unexpected watch error: {:?}", e);
+                    }
+                };
+                event
+            }
         });
+        Ok(newstream)
     }
 }

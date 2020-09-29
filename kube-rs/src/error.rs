@@ -1,9 +1,9 @@
-//! Error handling in [`kube-rs-async`][crate]
+//! Error handling in [`kube`][crate]
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-/// Possible errors when working with [`kube-rs-async`][crate]
+/// Possible errors when working with [`kube`][crate]
 #[derive(Error, Debug)]
 pub enum Error {
     /// ApiError for when things fail
@@ -20,6 +20,10 @@ pub enum Error {
     /// Http based error
     #[error("HttpError: {0}")]
     HttpError(#[from] http::Error),
+
+    /// Utf8 error
+    #[error("Utf8Error: {0}")]
+    Utf8Error(#[from] std::string::FromUtf8Error),
 
     /// Url conversion error
     #[error("InternalUrlError: {0}")]
@@ -48,6 +52,14 @@ pub enum Error {
     /// A request validation failed
     #[error("Request validation failed with {0}")]
     RequestValidation(String),
+
+    /// A dynamic resource conversion failure
+    #[error("Dynamic resource conversion failed {0}")]
+    DynamicResource(String),
+
+    /// An error with configuring SSL occured
+    #[error("SslError: {0}")]
+    SslError(String),
 }
 
 /// An Error response from the API

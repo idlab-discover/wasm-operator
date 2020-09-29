@@ -6,25 +6,24 @@
 //! # Example
 //!
 //! The following example will crate a [`Pod`][k8s_openapi::api::core::v1::Pod]
-//! and then watch for it to become available
+//! and then watch for it to become available using a manual `Api::watch` call.
 //!
 //! ```rust,no_run
 //! use futures::{StreamExt, TryStreamExt};
-//! use kube::api::{Api, ListParams, PostParams, WatchEvent};
+//! use kube::api::{Api, Meta, ListParams, PostParams, WatchEvent};
 //! use kube::Client;
-//! use kube::runtime::Informer;
 //! use k8s_openapi::api::core::v1::Pod;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), kube::Error> {
-//!     // Read the environment to find config for kube-rs-async client.
+//!     // Read the environment to find config for kube client.
 //!     // Note that this tries an in-cluster configuration first,
 //!     // then falls back on a kubeconfig file.
-//!     let kube_client = Client::try_default().await?;
+//!     let client = Client::try_default().await?;
 //!
 //!     // Get a strongly typed handle to the Kubernetes API for interacting
 //!     // with pods in the "default" namespace.
-//!     let pods: Api<Pod> = Api::namespaced(kube_client, "default");
+//!     let pods: Api<Pod> = Api::namespaced(client, "default");
 //!
 //!     // Create a pod from JSON
 //!     let pod = serde_json::from_value(serde_json::json!({
@@ -46,49 +45,48 @@
 //!     // Create the pod
 //!     let pod = pods.create(&PostParams::default(), &pod).await?;
 //!
-//!     // Create an informer for watching events about
-//!     let informer = Informer::new(pods).params(
-//!         ListParams::default()
-//!             .fields("metadata.name=my-pod")
-//!             .timeout(10),
-//!     );
+//!     // Start a watch call for pods matching our name
+//!     let lp = ListParams::default()
+//!             .fields(&format!("metadata.name={}", "my-pod"))
+//!             .timeout(10);
+//!     let mut stream = pods.watch(&lp, "0").await?.boxed();
 //!
-//!     // Get an event stream from the informer
-//!     let mut events_stream = informer.poll().await?.boxed();
-//!
-//!     // Keep getting events from the events stream
-//!     while let Some(event) = events_stream.try_next().await? {
-//!         match event {
-//!             WatchEvent::Modified(e) if e.status.as_ref().unwrap().phase.as_ref().unwrap() == "Running" => {
-//!                 println!("It's running!");
+//!     // Observe the pods phase for 10 seconds
+//!     while let Some(status) = stream.try_next().await? {
+//!         match status {
+//!             WatchEvent::Added(o) => println!("Added {}", Meta::name(&o)),
+//!             WatchEvent::Modified(o) => {
+//!                 let s = o.status.as_ref().expect("status exists on pod");
+//!                 let phase = s.phase.clone().unwrap_or_default();
+//!                 println!("Modified: {} with phase: {}", Meta::name(&o), phase);
 //!             }
-//!             WatchEvent::Error(e) => {
-//!                 panic!("WatchEvent error: {:?}", e);
-//!             }
+//!             WatchEvent::Deleted(o) => println!("Deleted {}", Meta::name(&o)),
+//!             WatchEvent::Error(e) => println!("Error {}", e),
 //!             _ => {}
 //!         }
 //!     }
+//!
 //!     Ok(())
 //! }
 //! ```
 
-#![deny(missing_docs)]
-
-#[macro_use]
-extern crate log;
+#[macro_use] extern crate log;
 
 pub mod api;
 pub mod client;
+#[deprecated(note = "Replaced by the kube-runtime crate", since = "0.38.0")]
+// Rust doesn't allow items within a deprecated module to interact with each other..
+#[allow(deprecated)]
 pub mod runtime;
-mod abi;
+pub mod abi;
 
 pub mod error;
 
-pub use api::{Api, Resource};
-#[doc(inline)]
-pub use client::Client;
-#[doc(inline)]
-pub use error::Error;
+#[cfg(feature = "derive")] pub use kube_derive::CustomResource;
+
+pub use api::{Api, DynamicResource, Resource};
+#[doc(inline)] pub use client::Client;
+#[doc(inline)] pub use error::Error;
 
 /// Convient alias for `Result<T, Error>`
 pub type Result<T> = std::result::Result<T, Error>;

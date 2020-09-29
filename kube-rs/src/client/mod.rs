@@ -1,6 +1,6 @@
 //! A basic API client for interacting with the Kubernetes API
 //!
-//! The [`Client`] uses standard kube-rs-async error handling.
+//! The [`Client`] uses standard kube error handling.
 //!
 //! This client can be used on its own or in conjuction with
 //! the [`Api`][crate::api::Api] type for more structured
@@ -9,7 +9,8 @@
 use crate::{error::ErrorResponse, Error, Result, abi};
 
 use either::{Either, Left, Right};
-use http::{self, StatusCode};
+use http::{self, Request, StatusCode};
+use k8s_openapi::apimachinery::pkg::apis::meta::v1 as k8s_meta_v1;
 use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::{self, Value};
 
@@ -53,17 +54,17 @@ impl Client {
         Ok(Client::default())
     }
 
-    fn send(&self, request: http::Request<Vec<u8>>) -> Result<http::Response<Vec<u8>>> {
+    async fn send(&self, request: http::Request<Vec<u8>>) -> Result<http::Response<Vec<u8>>> {
         Ok(abi::execute_request(request))
     }
 
     /// Perform a raw HTTP request against the API and deserialize the response
     /// as JSON to some known type.
-    pub fn request<T>(&self, request: http::Request<Vec<u8>>) -> Result<T>
+    pub async fn request<T>(&self, request: http::Request<Vec<u8>>) -> Result<T>
     where
         T: DeserializeOwned,
     {
-        let text = self.request_text(request)?;
+        let text = self.request_text(request).await?;
 
         serde_json::from_str(&text).map_err(|e| {
             warn!("{}, {:?}", text, e);
@@ -73,14 +74,12 @@ impl Client {
 
     /// Perform a raw HTTP request against the API and get back the response
     /// as a string
-    pub fn request_text(&self, request: http::Request<Vec<u8>>) -> Result<String> {
-        let method = request.method().to_string();
-        let uri = request.uri().to_string();
-        let res = self.send(request)?;
-        trace!("{} {}: {:?}", method, uri, res.status());
+    pub async fn request_text(&self, request: http::Request<Vec<u8>>) -> Result<String> {
+        let res: http::Response<Vec<u8>> = self.send(request).await?;
+        trace!("Status = {:?}", res.status());
         let s = res.status();
-
-        let text = String::from_utf8(res.into_body()).expect("String should be UTF-8 encoded");
+        let (_, body) = res.into_parts();
+        let text = String::from_utf8(body)?;
         handle_api_errors(&text, s)?;
 
         Ok(text)
@@ -88,28 +87,25 @@ impl Client {
 
     /// Perform a raw HTTP request against the API and get back either an object
     /// deserialized as JSON or a [`Status`] Object.
-    pub fn request_status<T>(&self, request: http::Request<Vec<u8>>) -> Result<Either<T, Status>>
+    pub async fn request_status<T>(&self, request: http::Request<Vec<u8>>) -> Result<Either<T, Status>>
     where
         T: DeserializeOwned,
     {
-        let method = request.method().to_string();
-        let uri = request.uri().to_string();
-        let res = self.send(request)?;
-        trace!("{} {}: {:?}", method, uri, res.status());
+        let res: http::Response<Vec<u8>> = self.send(request).await?;
+        trace!("Status = {:?}", res.status());
         let s = res.status();
-        let text = String::from_utf8(res.into_body()).expect("String should be UTF-8 encoded");
+        let (_, body) = res.into_parts();
+        let text = String::from_utf8(body)?;
         handle_api_errors(&text, s)?;
 
         // It needs to be JSON:
         let v: Value = serde_json::from_str(&text)?;
         if v["kind"] == "Status" {
             trace!("Status from {}", text);
-            Ok(Right(serde_json::from_str::<Status>(&text).map_err(
-                |e| {
-                    warn!("{}, {:?}", text, e);
-                    Error::SerdeError(e)
-                },
-            )?))
+            Ok(Right(serde_json::from_str::<Status>(&text).map_err(|e| {
+                warn!("{}, {:?}", text, e);
+                Error::SerdeError(e)
+            })?))
         } else {
             Ok(Left(serde_json::from_str::<T>(&text).map_err(|e| {
                 warn!("{}, {:?}", text, e);
@@ -117,11 +113,56 @@ impl Client {
             })?))
         }
     }
+
+    /// Returns apiserver version.
+    pub async fn apiserver_version(&self) -> Result<k8s_openapi::apimachinery::pkg::version::Info> {
+        self.request(Request::builder().uri("/version").body(vec![])?)
+            .await
+    }
+
+    /// Lists api groups that apiserver serves.
+    pub async fn list_api_groups(&self) -> Result<k8s_meta_v1::APIGroupList> {
+        self.request(Request::builder().uri("/apis").body(vec![])?).await
+    }
+
+    /// Lists resources served in given API group.
+    ///
+    /// ### Example usage:
+    /// ```rust
+    /// # async fn scope(client: kube::Client) -> Result<(), Box<dyn std::error::Error>> {
+    /// let apigroups = client.list_api_groups().await?;
+    /// for g in apigroups.groups {
+    ///     let ver = g
+    ///         .preferred_version
+    ///         .as_ref()
+    ///         .or_else(|| g.versions.first())
+    ///         .expect("preferred or versions exists");
+    ///     let apis = client.list_api_group_resources(&ver.group_version).await?;
+    ///     dbg!(apis);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn list_api_group_resources(&self, apiversion: &str) -> Result<k8s_meta_v1::APIResourceList> {
+        let url = format!("/apis/{}", apiversion);
+        self.request(Request::builder().uri(url).body(vec![])?).await
+    }
+
+    /// Lists versions of `core` a.k.a. `""` legacy API group.
+    pub async fn list_core_api_versions(&self) -> Result<k8s_meta_v1::APIVersions> {
+        self.request(Request::builder().uri("/api").body(vec![])?).await
+    }
+
+    /// Lists resources served in particular `core` group version.
+    pub async fn list_core_api_resources(&self, version: &str) -> Result<k8s_meta_v1::APIResourceList> {
+        let url = format!("/api/{}", version);
+        self.request(Request::builder().uri(url).body(vec![])?).await
+    }
 }
 
 /// Kubernetes returned error handling
 ///
-/// Either kube-rs-async returned an explicit ApiError struct,
+/// Either kube returned an explicit ApiError struct,
 /// or it someohow returned something we couldn't parse as one.
 ///
 /// In either case, present an ApiError upstream.
