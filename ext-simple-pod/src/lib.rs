@@ -3,9 +3,13 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::api::{ListParams, Meta, PostParams, WatchEvent};
 use kube::runtime::Informer;
 use kube::{Api, Client};
+use futures::task::SpawnExt;
 
-use kube_derive::CustomResource;
+use kube::CustomResource;
 use serde::{Deserialize, Serialize};
+use std::borrow::BorrowMut;
+use std::ops::Deref;
+use futures::{pin_mut, TryStreamExt};
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug)]
 #[kube(group = "slinky.dev", version = "v1", namespaced)]
@@ -17,26 +21,36 @@ pub struct SimplePodSpec {
 
 #[no_mangle]
 pub extern "C" fn run() {
-    let client = Client::default();
+    let mut exec = kube::abi::get_mut_executor();
 
-    let foos: Api<SimplePod> = Api::namespaced(client.clone(), "default");
-    let inform = Informer::new(foos).params(ListParams::default());
+    exec.deref().borrow_mut().spawner().spawn(async {
+        let client = Client::default();
 
-    let pods: Api<Pod> = Api::namespaced(client.clone(), "default");
+        let foos: Api<SimplePod> = Api::namespaced(client.clone(), "default");
+        let inform = Informer::new(foos).params(ListParams::default());
+        let pods: Api<Pod> = Api::namespaced(client.clone(), "default");
 
-    inform.poll(move |e| {
-        match e {
-            WatchEvent::Added(o) | WatchEvent::Modified(o) => {
-                reconcile_pod(pods.clone(), &o.name(), &o.spec.image).expect("Reconcile error");
+        let mut stream = inform.poll().await.unwrap();
+        pin_mut!(stream);
+
+        while let Some(e) = stream.try_next().await.unwrap() {
+            match e {
+                WatchEvent::Added(o) | WatchEvent::Modified(o) => {
+                    reconcile_pod(pods.clone(), &o.name(), &o.spec.image)
+                        .await
+                        .expect("Reconcile error");
+                }
+                WatchEvent::Error(e) => println!("Error event: {:?}", e),
+                e => println!("Not handled event: {:?}", e)
             }
-            WatchEvent::Error(e) => println!("Error event: {:?}", e),
-            e => println!("Not handled event: {:?}", e)
         }
-    });
+    }).unwrap();
+
+    exec.deref().borrow_mut().run_until_stalled();
 }
 
-fn reconcile_pod(pods: Api<Pod>, name: &str, image: &str) -> Result<Pod, kube::Error> {
-    match pods.get(&name) {
+async fn reconcile_pod(pods: Api<Pod>, name: &str, image: &str) -> Result<Pod, kube::Error> {
+    match pods.get(&name).await {
         Ok(mut existing) => {
             let existing_image = existing
                 .spec
@@ -52,12 +66,12 @@ fn reconcile_pod(pods: Api<Pod>, name: &str, image: &str) -> Result<Pod, kube::E
                 spec.containers[0].image = Some(image.to_string());
                 existing.spec = Some(spec);
                 println!("Replacing pod");
-                pods.replace(&existing.name(), &PostParams::default(), &existing)
+                pods.replace(&existing.name(), &PostParams::default(), &existing).await
             }
         }
         Err(kube::Error::Api(ae)) if ae.code == 404 => {
             println!("Creating pod");
-            pods.create(&PostParams::default(), &pod(name, image))
+            pods.create(&PostParams::default(), &pod(name, image)).await
         }
         e => e,
     }
@@ -66,10 +80,10 @@ fn reconcile_pod(pods: Api<Pod>, name: &str, image: &str) -> Result<Pod, kube::E
 fn pod(name: &str, image: &str) -> Pod {
     // TODO: Add ownerRef for deletion handling.
     Pod {
-        metadata: Some(ObjectMeta {
+        metadata: ObjectMeta {
             name: Some(name.to_string()),
             ..Default::default()
-        }),
+        },
         spec: Some(PodSpec {
             containers: vec![Container {
                 name: "default-container".to_string(),

@@ -1,6 +1,6 @@
 apiVersion: slinky.dev/v1
 kind: SimplePod
 metadata:
-  name: test
+  name: another
 spec:
   image: markusthoemmes/autoscale
