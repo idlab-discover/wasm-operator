@@ -1,21 +1,5 @@
-use safe_transmute::{transmute_one, transmute_to_bytes};
 use std::ffi::c_void;
 use std::mem;
-
-/// Struct to pass a pointer and its size to/from the host
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub(crate) struct Ptr {
-    pub(crate) ptr: u32,
-    pub(crate) size: u32,
-}
-unsafe impl safe_transmute::TriviallyTransmutable for Ptr {}
-
-impl From<u64> for Ptr {
-    fn from(value: u64) -> Self {
-        transmute_one(transmute_to_bytes(&[value])).unwrap()
-    }
-}
 
 #[no_mangle]
 pub extern "C" fn allocate(size: usize) -> *mut c_void {

@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 use super::memory;
 use std::ffi::c_void;
+use crate::abi::start_future;
 
 #[link(wasm_import_module = "http-proxy-abi")]
 extern "C" {
-    fn request(ptr: *const u8, len: usize, allocator_fn: extern "C" fn(usize) -> *mut c_void) -> u64;
+    fn request(ptr: *const u8, len: usize) -> u64;
 }
 
 /// Data structure to serialize/deserialize http request
@@ -58,20 +59,15 @@ impl Into<http::Response<Vec<u8>>> for HttpResponse {
     }
 }
 
-pub fn execute_request(req: http::Request<Vec<u8>>) -> http::Response<Vec<u8>> {
+pub async fn execute_request(req: http::Request<Vec<u8>>) -> http::Response<Vec<u8>> {
     let inner_request: HttpRequest = req.into();
     let bytes = bincode::serialize(&inner_request).unwrap();
 
-    let response_ptr: memory::Ptr =
-        unsafe { request(bytes.as_ptr(), bytes.len(), memory::allocate) }.into();
+    let async_request_id: u64 =
+        unsafe { request(bytes.as_ptr(), bytes.len()) }.into();
 
-    let response_raw = unsafe {
-        Vec::from_raw_parts(
-            response_ptr.ptr as *mut u8,
-            response_ptr.size as usize,
-            response_ptr.size as usize,
-        )
-    };
+    let response_raw = start_future(async_request_id).await.unwrap();
+
     let response_inner: HttpResponse = bincode::deserialize(&response_raw).unwrap();
 
     response_inner.into()

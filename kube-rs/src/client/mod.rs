@@ -55,7 +55,7 @@ impl Client {
     }
 
     async fn send(&self, request: http::Request<Vec<u8>>) -> Result<http::Response<Vec<u8>>> {
-        Ok(abi::execute_request(request))
+        Ok(abi::execute_request(request).await)
     }
 
     /// Perform a raw HTTP request against the API and deserialize the response
