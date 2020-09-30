@@ -1,4 +1,4 @@
-use crate::kube_watch::{WatchCommand, WatchKey};
+use crate::kube_watch::{WatchKey};
 use serde::{Deserialize, Serialize};
 
 // The following structs are copy-pasted/derived from kube-rs, but they implement ser/de
@@ -46,8 +46,8 @@ pub struct WatchRequest {
     pub watch_params: WatchParams,
 }
 
-impl WatchRequest {
-    pub fn into_watch_command(self, controller_name: String, watch_id: u64) -> WatchCommand {
+impl Into<WatchKey> for WatchRequest {
+    fn into(self) -> WatchKey {
         let resource = kube::Resource {
             api_version: self.resource.api_version,
             group: self.resource.group,
@@ -64,14 +64,10 @@ impl WatchRequest {
             continue_token: None,
         };
         let resource_version = self.watch_params.resource_version;
-        WatchCommand {
-            watch_id,
-            controller_name,
-            watch_key: WatchKey {
-                resource_version,
-                resource,
-                list_params,
-            },
+        WatchKey {
+            resource_version,
+            resource,
+            list_params,
         }
     }
 }

@@ -4,19 +4,19 @@ extern crate log;
 use kube::{Client, Config};
 use std::env;
 use std::path::PathBuf;
-use futures::StreamExt;
 use std::collections::HashMap;
-use tokio::sync::mpsc::UnboundedSender;
 use tokio::task;
 
 mod abi;
 mod kube_watch;
+mod http;
 mod modules;
 mod utils;
 
 use crate::abi::AbiConfig;
-use crate::kube_watch::{Dispatcher, WatchCommand, Watchers};
+use crate::kube_watch::{Watchers};
 use crate::modules::{ControllerModule, ControllerModuleMetadata};
+use crate::abi::dispatcher::AsyncResultDispatcher;
 
 fn main() {
     env_logger::init();
@@ -31,10 +31,10 @@ fn main() {
         .block_on(Config::infer())
         .expect("Cannot infer the kubeconfig");
     let cluster_url = kubeconfig.cluster_url.clone();
-    let client = reqwest::ClientBuilder::from(kubeconfig.clone())
+
+    let http_client = reqwest::ClientBuilder::from(kubeconfig.clone())
         .build()
         .expect("Cannot build the http client from the kubeconfig");
-
     let kube_client = Client::new(kubeconfig);
 
     let mut args: Vec<String> = env::args().collect();
@@ -49,14 +49,14 @@ fn main() {
     runtime.block_on(async {
         let mut joins = Vec::with_capacity(mods.len());
 
+        let (http_command_tx, http_command_rx) = tokio::sync::mpsc::unbounded_channel();
         let (watch_command_tx, watch_command_rx) = tokio::sync::mpsc::unbounded_channel();
-        let (watch_event_tx, watch_event_rx) = tokio::sync::mpsc::channel(10);
+        let (async_result_tx, async_result_rx) = tokio::sync::mpsc::channel(10);
 
         info!("Starting controllers");
         for (path, mm, wasm_bytes) in mods {
-            let url = cluster_url.clone();
-            let client = client.clone();
-            let tx = watch_command_tx.clone();
+            let http_command_sender = http_command_tx.clone();
+            let watch_command_sender = watch_command_tx.clone();
 
             joins.push(task::spawn_blocking(move || {
                 info!(
@@ -64,7 +64,10 @@ fn main() {
                     path.to_str().unwrap(),
                     mm
                 );
-                start_controller(mm, wasm_bytes, url, client, tx)
+                start_controller(mm, wasm_bytes, AbiConfig {
+                    http_command_sender,
+                    watch_command_sender
+                })
             }));
         }
 
@@ -80,11 +83,12 @@ fn main() {
 
         tokio::spawn(Watchers::start(
             watch_command_rx,
-            watch_event_tx,
+            async_result_tx.clone(),
             kube_client,
         ));
+        tokio::spawn(http::start_request_executor(http_command_rx, async_result_tx, cluster_url, http_client));
 
-        tokio::spawn(Dispatcher::start(controllers, watch_event_rx));
+        tokio::spawn(AsyncResultDispatcher::start(controllers, async_result_rx));
 
         tokio::signal::ctrl_c().await.unwrap();
         info!("Closing")
@@ -94,20 +98,12 @@ fn main() {
 fn start_controller(
     module_meta: ControllerModuleMetadata,
     wasm_bytes: Vec<u8>,
-    cluster_url: url::Url,
-    http_client: reqwest::Client,
-    watch_command_sender: UnboundedSender<WatchCommand>,
+    abi_config: AbiConfig,
 ) -> anyhow::Result<ControllerModule> {
-    let config = AbiConfig {
-        cluster_url,
-        http_client,
-        watch_command_sender,
-    };
-
     let module_name = module_meta.name.clone();
 
     let (module, duration) =
-        execution_time!({ ControllerModule::compile(module_meta, wasm_bytes, config)? });
+        execution_time!({ ControllerModule::compile(module_meta, wasm_bytes, abi_config)? });
     info!(
         "Compilation time '{}' duration: {} ms",
         &module_name,

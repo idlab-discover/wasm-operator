@@ -1,26 +1,4 @@
-use safe_transmute::{transmute_one, transmute_to_bytes};
 use serde::{Deserialize, Serialize};
-
-/// Struct to pass a pointer and its size to/from the host
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub(crate) struct Ptr {
-    pub ptr: u32,
-    pub size: u32,
-}
-unsafe impl safe_transmute::TriviallyTransmutable for Ptr {}
-
-impl From<u64> for Ptr {
-    fn from(value: u64) -> Self {
-        transmute_one(transmute_to_bytes(&[value])).unwrap()
-    }
-}
-
-impl Into<u64> for Ptr {
-    fn into(self) -> u64 {
-        transmute_one(transmute_to_bytes(&[self])).unwrap()
-    }
-}
 
 // Hack to serialize/deserialize http request
 #[derive(Serialize, Deserialize)]

@@ -1,5 +1,5 @@
 use super::ControllerModuleMetadata;
-use crate::abi::{Abi, AbiConfig};
+use crate::abi::{Abi, AbiConfig, dispatcher::AsyncType};
 use wasmer_runtime::*;
 use wasmer_singlepass_backend::SinglePassCompiler;
 
@@ -54,9 +54,9 @@ impl ControllerModule {
         Ok(())
     }
 
-    pub fn on_event(&self, event_id: u64, event: Vec<u8>) -> anyhow::Result<()> {
+    pub fn wakeup(&self, async_request_id: u64, async_type: AsyncType, value: Option<Vec<u8>>) -> anyhow::Result<()> {
         let abi = self.meta.abi.get_abi();
-        Ok(abi.on_event(&self.instance, event_id, event)?)
+        Ok(abi.wakeup(&self.instance, async_request_id, async_type, value)?)
     }
 }
 

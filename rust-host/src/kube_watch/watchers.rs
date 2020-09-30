@@ -1,8 +1,10 @@
-use super::{WatchCommand, WatchEvent, WatchKey};
+use super::{WatchKey};
 use futures::{StreamExt, TryStreamExt};
 use std::collections::HashMap;
 use std::convert::TryInto;
 use tokio::sync::mpsc::{Sender, UnboundedReceiver};
+use crate::abi::dispatcher::{AsyncResult, AsyncType};
+use crate::abi::commands::AbiCommand;
 
 pub struct Watchers {
     cache: HashMap<WatchKey, Vec<(String, u64)>>,
@@ -10,25 +12,25 @@ pub struct Watchers {
 }
 
 impl Watchers {
-    fn register_watch(&mut self, command: WatchCommand, kube_client: kube::Client) {
-        if self.cache.contains_key(&command.watch_key) {
+    fn register_watch(&mut self, command: AbiCommand<WatchKey>, kube_client: kube::Client) {
+        if self.cache.contains_key(&command.value) {
             debug!(
                 "Found a watch already started for '{:?}', registering new receiver ({}, {})",
-                &command.watch_key, &command.controller_name, &command.watch_id
+                &command.value, &command.controller_name, &command.async_request_id
             );
             self.cache
-                .get_mut(&command.watch_key)
+                .get_mut(&command.value)
                 .unwrap()
-                .push((command.controller_name, command.watch_id))
+                .push((command.controller_name, command.async_request_id))
         } else {
             debug!(
                 "Starting a new watch for '{:?}', registering new receiver ({}, {})",
-                &command.watch_key, &command.controller_name, &command.watch_id
+                &command.value, &command.controller_name, &command.async_request_id
             );
-            let (watch_key, controller_name, watch_id) =
-                (command.watch_key, command.controller_name, command.watch_id);
+            let (watch_key, controller_name, async_request_id) =
+                (command.value, command.controller_name, command.async_request_id);
             self.cache
-                .insert(watch_key.clone(), vec![(controller_name, watch_id)]);
+                .insert(watch_key.clone(), vec![(controller_name, async_request_id)]);
 
             let mut internal_dispatch_tx = self.internal_dispatch_tx.clone();
 
@@ -51,7 +53,7 @@ impl Watchers {
         &self,
         key: WatchKey,
         event: Vec<u8>,
-        mut tx: Sender<WatchEvent>,
+        mut tx: Sender<AsyncResult>,
     ) -> anyhow::Result<()> {
         let subs = self.cache.get(&key).ok_or(anyhow::anyhow!(
             "Cannot find the subscribers list for key {:?}",
@@ -59,10 +61,11 @@ impl Watchers {
         ))?;
 
         for (controller_name, id) in subs {
-            let watch_event = WatchEvent {
+            let watch_event = AsyncResult {
                 controller_name: controller_name.clone(),
-                watch_id: id.clone(),
-                event: event.clone(),
+                async_request_id: id.clone(),
+                async_type: AsyncType::Stream,
+                value: Some(event.clone()),
             };
 
             debug!("Dispatching watch event with id '{}' for controller '{}'", controller_name, id);
@@ -74,8 +77,8 @@ impl Watchers {
     }
 
     pub async fn start(
-        mut rx: UnboundedReceiver<WatchCommand>,
-        tx: Sender<WatchEvent>,
+        mut rx: UnboundedReceiver<AbiCommand<WatchKey>>,
+        tx: Sender<AsyncResult>,
         kube_client: kube::Client,
     ) -> anyhow::Result<()> {
         info!("Starting the watch commands listener loop");
