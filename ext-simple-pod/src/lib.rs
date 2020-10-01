@@ -2,7 +2,7 @@ use k8s_openapi::api::core::v1::{Container, Pod, PodSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::api::{ListParams, Meta, PostParams, WatchEvent};
 use kube::runtime::Informer;
-use kube::{Api, Client};
+use kube::{Api, Client, abi};
 use futures::task::SpawnExt;
 
 use kube::CustomResource;
@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::BorrowMut;
 use std::ops::Deref;
 use futures::{pin_mut, TryStreamExt};
+use std::time::{Duration, Instant};
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug)]
 #[kube(group = "slinky.dev", version = "v1", namespaced)]
@@ -29,6 +30,10 @@ pub extern "C" fn run() {
         let foos: Api<SimplePod> = Api::namespaced(client.clone(), "default");
         let inform = Informer::new(foos).params(ListParams::default());
         let pods: Api<Pod> = Api::namespaced(client.clone(), "default");
+
+        println!("Waiting 10 seconds: {:?}", Instant::now());
+        abi::register_delay(Duration::from_secs(10)).await;
+        println!("10 seconds passed: {:?}", Instant::now());
 
         let mut stream = inform.poll().await.unwrap();
         pin_mut!(stream);

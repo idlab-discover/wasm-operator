@@ -5,21 +5,24 @@ use std::convert::{TryFrom, TryInto};
 use http::HeaderMap;
 
 use crate::abi::rust_v1alpha1::HttpResponse;
+use futures::{StreamExt};
 
 pub async fn start_request_executor(
-    mut rx: UnboundedReceiver<AbiCommand<http::Request<Vec<u8>>>>,
-    mut tx: Sender<AsyncResult>,
+    rx: UnboundedReceiver<AbiCommand<http::Request<Vec<u8>>>>,
+    tx: Sender<AsyncResult>,
     cluster_url: url::Url,
     http_client: reqwest::Client,
 ) -> anyhow::Result<()> {
-    while let Some(mut http_command) = rx.recv().await {
+    let cluster_url = cluster_url.as_str();
+    rx.for_each_concurrent(10, |mut http_command| async {
         // Patch the request URI
         *http_command.value.uri_mut() = http::Uri::try_from(
-            generate_url(cluster_url.as_str(), http_command.value.uri().path_and_query().unwrap())
+            generate_url(cluster_url, http_command.value.uri().path_and_query().unwrap())
         ).expect("Cannot build the final uri");
 
         // Execute the request
-        let response = http_client.execute(http_command.value.try_into().unwrap()).await?;
+        let response = http_client.clone().execute(http_command.value.try_into().unwrap()).await
+            .expect("Successful response");
 
         // Serialize the response
         let status_code = response.status();
@@ -27,7 +30,8 @@ pub async fn start_request_executor(
         for (k, v) in response.headers().iter() {
             headers.append(k, v.clone());
         }
-        let response_body = response.bytes().await?;
+        let response_body = response.bytes().await
+            .expect("Bytes");
 
         let inner_response = HttpResponse {
             status_code,
@@ -35,14 +39,13 @@ pub async fn start_request_executor(
             body: response_body.to_vec(),
         }; //TODO Design problem here: i'm using an abi version specific type here. Needs some engineering
 
-        tx.send(AsyncResult {
+        tx.clone().send(AsyncResult {
             controller_name: http_command.controller_name,
             async_request_id: http_command.async_request_id,
             async_type: AsyncType::Future,
-            value: Some(bincode::serialize(&inner_response)?)
-        }).await?;
-
-    }
+            value: Some(bincode::serialize(&inner_response).expect("Error while serializing"))
+        }).await.expect("Send error");
+    }).await;
 
     Ok(())
 }

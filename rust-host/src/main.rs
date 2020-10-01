@@ -11,6 +11,7 @@ mod abi;
 mod kube_watch;
 mod http;
 mod modules;
+mod delay;
 mod utils;
 
 use crate::abi::AbiConfig;
@@ -50,12 +51,14 @@ fn main() {
         let mut joins = Vec::with_capacity(mods.len());
 
         let (http_command_tx, http_command_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (delay_command_tx, delay_command_rx) = tokio::sync::mpsc::unbounded_channel();
         let (watch_command_tx, watch_command_rx) = tokio::sync::mpsc::unbounded_channel();
         let (async_result_tx, async_result_rx) = tokio::sync::mpsc::channel(10);
 
         info!("Starting controllers");
         for (path, mm, wasm_bytes) in mods {
             let http_command_sender = http_command_tx.clone();
+            let delay_command_sender = delay_command_tx.clone();
             let watch_command_sender = watch_command_tx.clone();
 
             joins.push(task::spawn_blocking(move || {
@@ -66,6 +69,7 @@ fn main() {
                 );
                 start_controller(mm, wasm_bytes, AbiConfig {
                     http_command_sender,
+                    delay_command_sender,
                     watch_command_sender
                 })
             }));
@@ -81,13 +85,12 @@ fn main() {
             .collect::<anyhow::Result<HashMap<String, ControllerModule>>>()
             .expect("All controllers started correctly");
 
-        tokio::spawn(Watchers::start(
-            watch_command_rx,
-            async_result_tx.clone(),
-            kube_client,
-        ));
-        tokio::spawn(http::start_request_executor(http_command_rx, async_result_tx, cluster_url, http_client));
+        // Command executors
+        tokio::spawn(Watchers::start(watch_command_rx, async_result_tx.clone(), kube_client));
+        tokio::spawn(http::start_request_executor(http_command_rx, async_result_tx.clone(), cluster_url, http_client));
+        tokio::spawn(delay::start_delay_executor(delay_command_rx, async_result_tx));
 
+        // Result dispatcher
         tokio::spawn(AsyncResultDispatcher::start(controllers, async_result_rx));
 
         tokio::signal::ctrl_c().await.unwrap();

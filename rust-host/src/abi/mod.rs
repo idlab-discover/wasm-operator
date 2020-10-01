@@ -6,6 +6,7 @@ use wasmer_runtime::{ImportObject, Instance};
 use dispatcher::AsyncType;
 use std::fmt::Debug;
 use crate::abi::commands::AbiCommand;
+use std::time::Duration;
 
 #[cfg(feature = "abi-rust-v1alpha1")]
 pub(crate) mod rust_v1alpha1;
@@ -15,6 +16,7 @@ pub mod commands;
 
 pub struct AbiConfig {
     pub http_command_sender: UnboundedSender<AbiCommand<http::Request<Vec<u8>>>>,
+    pub delay_command_sender: UnboundedSender<AbiCommand<Duration>>,
     pub watch_command_sender: UnboundedSender<AbiCommand<WatchKey>>,
 }
 

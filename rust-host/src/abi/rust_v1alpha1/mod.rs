@@ -16,6 +16,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::fmt::Debug;
 use crate::abi::commands::AbiCommand;
+use std::time::Duration;
 
 pub(crate) struct Abi {}
 
@@ -23,11 +24,17 @@ impl super::Abi for Abi {
     fn generate_imports(&self, controller_name: &str, abi_config: AbiConfig) -> ImportObject {
         let counter = Arc::new(AtomicU64::new(0));
         let request_ctx = AbiMethodCtx::new(controller_name, abi_config.http_command_sender, counter.clone());
+        let delay_ctx = AbiMethodCtx::new(controller_name, abi_config.delay_command_sender, counter.clone());
         let watch_ctx = AbiMethodCtx::new(controller_name, abi_config.watch_command_sender, counter.clone());
         imports! {
             "http-proxy-abi" => {
                 "request" => func!(move |ctx: &mut Ctx, ptr: WasmPtr<u8, Array>, size: u32| -> u64 {
                     request_ctx.request_impl(ctx, ptr, size)
+                }),
+            },
+            "delay-abi" => {
+                "delay" => func!(move |ctx: &mut Ctx, millis: u64| -> u64 {
+                    delay_ctx.delay_impl(ctx, millis)
                 }),
             },
             "kube-watch-abi" => {
@@ -133,6 +140,26 @@ impl AbiMethodCtx<http::Request<Vec<u8>>> {
                 async_request_id,
                 controller_name: self.controller_name.clone(),
                 value: inner_request.into()
+            })
+            .unwrap();
+
+        async_request_id
+    }
+}
+
+impl AbiMethodCtx<Duration> {
+    fn delay_impl(
+        &self,
+        _ctx: &mut Ctx,
+        millis: u64
+    ) -> u64 {
+        let async_request_id = self.generate_async_request_id();
+
+        self.command_sender
+            .send(AbiCommand {
+                async_request_id,
+                controller_name: self.controller_name.clone(),
+                value: Duration::from_millis(millis)
             })
             .unwrap();
 
