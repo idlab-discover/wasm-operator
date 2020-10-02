@@ -35,7 +35,7 @@ To compile and run the host:
 
 ```shell script
 cd rust-host
-cargo +nightly run compiled_mods
+RUST_LOG=rust_host=debug,cranelift=warn,kube=debug cargo +nightly run compiled_mods
 ```
 
 Now you can create the `Memcached` CR with:

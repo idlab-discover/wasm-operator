@@ -8,7 +8,7 @@ extern "C" {
     fn delay(millis: u64) -> u64;
 }
 
-pub fn register_delay(del: Duration) -> impl Future<Output=()> {
+pub fn register_delay(del: Duration) -> impl Future<Output=()> + Send {
     let millis = del.as_millis() as u64;
     super::start_future(
         unsafe { delay(millis) }

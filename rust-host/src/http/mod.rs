@@ -20,6 +20,11 @@ pub async fn start_request_executor(
             generate_url(cluster_url, http_command.value.uri().path_and_query().unwrap())
         ).expect("Cannot build the final uri");
 
+        debug!(
+            "Received request command from '{}' with id {}: {} {}",
+            &http_command.controller_name, &http_command.async_request_id, http_command.value.method().as_str() ,http_command.value.uri()
+        );
+
         // Execute the request
         let response = http_client.clone().execute(http_command.value.try_into().unwrap()).await
             .expect("Successful response");
