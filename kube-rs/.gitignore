@@ -1,6 +1,0 @@
-.vscode/
-
-/target
-**/*.rs.bk
-Cargo.lock
-tests/dapp

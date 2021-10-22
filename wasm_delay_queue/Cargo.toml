@@ -1,0 +1,30 @@
+[package]
+name = "wasm-delay-queue"
+version = "0.0.1"
+edition = "2018"
+authors = []
+license = "MIT"
+description = """
+Alternative for tokio util DelayQueue working in wasm.
+"""
+categories = ["asynchronous"]
+
+[features]
+# No features on by default
+default = []
+
+[dependencies]
+bytes = "1.0.0"
+futures-core = "0.3.0"
+futures-sink = "0.3.0"
+futures-io = { version = "0.3.0", optional = true }
+futures-util = { version = "0.3.0", optional = true }
+log = "0.4"
+pin-project-lite = "0.2.0"
+slab = { version = "0.4.1" } # Backs `DelayQueue`
+kube-runtime-abi = { path = "../kube_runtime_abi", version = "^0.0.1" }
+tracing = "0.1.29"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
