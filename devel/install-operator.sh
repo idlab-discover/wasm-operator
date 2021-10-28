@@ -20,4 +20,3 @@ helm upgrade master-tim "${SCRIPT_ROOT}/../deploy/chart/" \
 	--namespace controller-namespace \
 	--create-namespace \
 	--set image="github.com/inteon/master-tim-2021:${local_tag}"
-

@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: parent-controller
+  namespace: controller-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: parent-controller
+  template:
+    metadata:
+      labels:
+        name: parent-controller
+    spec:
+      serviceAccountName: parent-controller
+      containers:
+        - name: parent-controller
+          image: {{ .Values.image }}
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: 20M
+              cpu: 100m
+            limits:
+              memory: 500M
+              cpu: 200m

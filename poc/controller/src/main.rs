@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
 use tokio::task;
-// use tower::ServiceBuilder;
+use tower::ServiceBuilder;
 use hyper::client::connect::HttpConnector;
 use hyper_tls::HttpsConnector;
 use kube::client::ConfigExt;
@@ -24,6 +24,7 @@ use crate::abi::AbiConfig;
 use crate::modules::{ControllerModule, ControllerModuleMetadata};
 
 fn main() {
+    std::env::set_var("RUST_LOG", "info,controller=debug,cranelift=warn,kube=debug");
     env_logger::init();
 
     // Bootstrap tokio runtime and kube-rs-async config/client
@@ -47,14 +48,10 @@ fn main() {
             .pool_idle_timeout(Duration::from_secs(30))
             .build(https);
 
-    /*
     let service = ServiceBuilder::new()
         .layer(kubeconfig.base_uri_layer())
         .option_layer(kubeconfig.auth_layer().expect("auth layer is not configurable from kube config"))
         .service(hyper_client);
-        */
-
-    // let kube_client = Client::new(service, kubeconfig.default_namespace);
 
     let mut args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -119,13 +116,13 @@ fn main() {
             requestor_command_rx,
             async_result_tx.clone(),
             cluster_url.clone(),
-            hyper_client.clone(),
+            service.clone(),
         ));
         tokio::spawn(http::start_request_stream_executor(
             stream_requestor_command_rx,
             async_result_tx.clone(),
             cluster_url,
-            hyper_client,
+            service,
         ));
         tokio::spawn(delay::start_delay_executor(
             delay_command_rx,

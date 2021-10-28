@@ -1,9 +1,7 @@
 use crate::abi::commands::AbiCommand;
 use crate::abi::dispatcher::{AsyncResult, AsyncType};
-use futures::{self, StreamExt, TryStreamExt};
+use futures::{self, StreamExt};
 use http::HeaderMap;
-use hyper::client::connect::HttpConnector;
-use hyper_tls::HttpsConnector;
 use log::{debug, warn};
 use std::convert::TryFrom;
 use tokio::sync::mpsc::{Sender, UnboundedReceiver};
@@ -14,15 +12,24 @@ use tokio_util::{
 
 use crate::abi::rust_v1alpha1::HttpResponseStream;
 
-pub async fn start_request_stream_executor(
+use tower_service::Service;
+use http::{Request, Response};
+use hyper::Body;
+
+pub async fn start_request_stream_executor<S>(
     mut rx: UnboundedReceiver<AbiCommand<http::Request<Vec<u8>>>>,
     otx: Sender<AsyncResult>,
     ocluster_url: http::Uri,
-    ohttp_client: hyper::Client<HttpsConnector<HttpConnector>, hyper::Body>,
-) -> anyhow::Result<()> {
+    ohttp_client: S,
+) -> anyhow::Result<()>
+where
+    S: Service<Request<Body>, Response = Response<Body>> + Send + 'static,
+    S::Future: Send + 'static,
+    S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
     while let Some(mut http_command) = rx.recv().await {
         let cluster_url = ocluster_url.clone();
-        let http_client = ohttp_client.clone();
+        let http_client = ohttp_client;
         let tx = otx.clone();
         tokio::spawn(async move {
             // Patch the request URI
@@ -42,8 +49,7 @@ pub async fn start_request_stream_executor(
 
             // Execute the request
             let response = http_client
-                .clone()
-                .request(http_command.value.map(hyper::Body::from))
+                .call(http_command.value.map(hyper::Body::from))
                 .await
                 .expect("Successful response");
 

@@ -4,12 +4,7 @@ set -e
 SCRIPT_ROOT=$(dirname "${BASH_SOURCE}")
 source "${SCRIPT_ROOT}/lib.sh"
 
-cd "${SCRIPT_ROOT}/../"
+cd "${SCRIPT_ROOT}/../poc"
 
-pushd ext-simple-pod
-
-cargo wasi build --release
-
-popd
-
-cargo build --release
+cargo build -p controller --release
+cargo wasi build -p simple-pod-example --release

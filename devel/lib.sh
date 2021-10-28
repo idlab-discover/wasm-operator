@@ -81,4 +81,4 @@ install_tool_etcd() {
 }
 
 # Config variables
-KIND_CLUSTER_NAME="test"
+KIND_CLUSTER_NAME="kind"

@@ -1,0 +1,41 @@
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: parent-controller
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - services
+  - replicasets
+  - nodes
+  verbs:
+  - list
+  - get
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services/status
+  verbs:
+  - update
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  verbs:
+  - "*"
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - "*"
+- apiGroups:
+  - "slinky.dev"
+  resources:
+  - simplepods
+  verbs:
+  - "*"
+
