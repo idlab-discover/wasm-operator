@@ -9,6 +9,9 @@ use tokio_util::{
     codec::{FramedRead, LinesCodec, LinesCodecError},
     io::StreamReader,
 };
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use futures::TryStreamExt;
 
 use crate::abi::rust_v1alpha1::HttpResponseStream;
 
@@ -20,16 +23,16 @@ pub async fn start_request_stream_executor<S>(
     mut rx: UnboundedReceiver<AbiCommand<http::Request<Vec<u8>>>>,
     otx: Sender<AsyncResult>,
     ocluster_url: http::Uri,
-    ohttp_client: S,
+    ohttp_client: Arc<Mutex<S>>,
 ) -> anyhow::Result<()>
 where
     S: Service<Request<Body>, Response = Response<Body>> + Send + 'static,
     S::Future: Send + 'static,
-    S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    S::Error: std::fmt::Debug,
 {
     while let Some(mut http_command) = rx.recv().await {
         let cluster_url = ocluster_url.clone();
-        let http_client = ohttp_client;
+        let http_client = ohttp_client.clone();
         let tx = otx.clone();
         tokio::spawn(async move {
             // Patch the request URI
@@ -49,6 +52,8 @@ where
 
             // Execute the request
             let response = http_client
+                .lock()
+                .await
                 .call(http_command.value.map(hyper::Body::from))
                 .await
                 .expect("Successful response");

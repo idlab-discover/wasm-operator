@@ -423,7 +423,7 @@ dependencies = [
 
 [[package]]
 name = "kube"
-version = "0.61.0"
+version = "0.63.1"
 dependencies = [
  "base64",
  "bytes",
@@ -449,7 +449,7 @@ dependencies = [
 
 [[package]]
 name = "kube-core"
-version = "0.61.0"
+version = "0.63.1"
 dependencies = [
  "chrono",
  "form_urlencoded",
@@ -464,7 +464,7 @@ dependencies = [
 
 [[package]]
 name = "kube-derive"
-version = "0.61.0"
+version = "0.63.1"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -475,7 +475,7 @@ dependencies = [
 
 [[package]]
 name = "kube-runtime"
-version = "0.61.0"
+version = "0.63.1"
 dependencies = [
  "dashmap",
  "derivative",

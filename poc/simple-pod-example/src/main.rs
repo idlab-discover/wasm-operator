@@ -1,5 +1,5 @@
-use k8s_openapi::api::core::v1::{Container, Pod, PodSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::MicroTime;
 
 use kube::{
     api::{ListParams, PostParams},
@@ -9,17 +9,17 @@ use kube::{
 use kube_runtime::controller::{Context, Controller, ReconcilerAction};
 use futures::task::SpawnExt;
 
+use std::env;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 use futures::StreamExt;
 use std::time::{Duration};
 use snafu::Snafu;
+use chrono::{Local, Utc};
 
 #[derive(Debug, Snafu)]
 enum Error {
-    #[snafu(display("Pod doesn't have image"))]
-    PodWithoutImage,
     #[snafu(display("Kube error: {}", source))]
     #[snafu(context(false))]
     UnknownKubeError{
@@ -28,12 +28,12 @@ enum Error {
 }
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
-#[kube(kind = "SimplePod", group = "slinky.dev", version = "v1", namespaced)]
-pub struct SimplePodSpec {
-    image: String,
+#[kube(kind = "Resource", group = "amurant.io", version = "v1", namespaced)]
+pub struct ResourceSpec {
+    nonce: String,
+    start_timestamp: Option<MicroTime>,
+    end_timestamp: Option<MicroTime>,
 }
-
-// TODO: Add status?
 
 /// The controller triggers this on reconcile errors
 fn error_policy(_error: &Error, _ctx: Context<Data>) -> ReconcilerAction {
@@ -48,8 +48,6 @@ struct Data {
 }
 
 fn main() {
-    env_logger::init();
-
     let exec = kube_runtime_abi::get_mut_executor();
     // Start the main
     exec.deref().borrow_mut().spawner().spawn(main_async()).unwrap();
@@ -60,11 +58,10 @@ fn main() {
 async fn main_async() {
     let client = Client::default();
 
-    let simple_pods: Api<SimplePod> = Api::namespaced(client.clone(), "default");
-    let pods: Api<Pod> = Api::namespaced(client.clone(), "default");
+    let in_namespace = env::var("IN_NAMESPACE").unwrap_or("default".to_string());
+    let in_resources: Api<Resource> = Api::namespaced(client.clone(), in_namespace.as_str());
 
-    Controller::new(simple_pods, ListParams::default())
-        .owns(pods, ListParams::default())
+    Controller::new(in_resources, ListParams::default())
         .run(reconcile, error_policy, Context::new(Data { client }))
         .for_each(|res| async move { match res {
             Ok((obj, _)) => println!("Reconciled {:?}", obj),
@@ -73,61 +70,56 @@ async fn main_async() {
 }
 
 /// Controller triggers this whenever our main object or our children changed
-async fn reconcile(simple_pod: SimplePod, ctx: Context<Data>) -> Result<ReconcilerAction, Error> {
+async fn reconcile(in_resource: Resource, ctx: Context<Data>) -> Result<ReconcilerAction, Error> {
     let client = ctx.get_ref().client.clone();
-    let pods: Api<Pod> = Api::namespaced(client.clone(), "default");
 
-    let name = simple_pod.name();
-    let image = simple_pod.spec.image;
+    let name = in_resource.name();
+    let nonce = in_resource.spec.nonce.clone();
 
-    match pods.get(&name).await {
+    let out_namespace = env::var("OUT_NAMESPACE").unwrap_or("default".to_string());
+    let out_resources: Api<Resource> = Api::namespaced(client.clone(), out_namespace.as_str());
+    let now_timestamp = MicroTime(Local::now().with_timezone(&Utc));
+    match out_resources.get(&name).await {
         Ok(mut existing) => {
-            let existing_image = existing
-                .spec
-                .as_ref()
-                .map(|spec| spec.containers[0].image.as_ref())
-                .flatten()
-                .ok_or(Error::PodWithoutImage)?;
-            if existing_image == &image {
-                println!("Image is equal, doing nothing");
+            if nonce != existing.spec.nonce {
+                println!("nonce != current nonce, resetting resource");
+                existing.spec.nonce = nonce;
+                existing.spec.start_timestamp = Some(now_timestamp);
+                existing.spec.end_timestamp = None;
+                out_resources.replace(&existing.name(), &PostParams::default(), &existing).await?;
+            } else if existing.spec.end_timestamp.is_none() {
+                println!("end_timestamp is None, update end_timestamp");
+                existing.spec.end_timestamp = Some(now_timestamp);
+                out_resources.replace(&existing.name(), &PostParams::default(), &existing).await?;
             } else {
-                let mut spec = existing.spec.unwrap();
-                spec.containers[0].image = Some(image.to_string());
-                existing.spec = Some(spec);
-                println!("Replacing pod");
-                pods.replace(&existing.name(), &PostParams::default(), &existing).await?;
+                println!("end_timestamp is set, doing nothing");
             }
         }
         Err(kube::Error::Api(ae)) if ae.code == 404 => {
             println!("Creating pod");
-            pods.create(
+            out_resources.create(
                 &PostParams::default(),
-                &pod(&name, &image)
+                &resource(&name, &nonce, now_timestamp)
             ).await?;
         }
         Err(e) => Err(Error::UnknownKubeError { source: e })?,
     };
 
-    Ok(ReconcilerAction {
-        requeue_after: Some(Duration::from_secs(300)),
-    })
+    Ok(ReconcilerAction { requeue_after: None })
 }
 
-fn pod(name: &str, image: &str) -> Pod {
-    // TODO: Add ownerRef for deletion handling.
-    Pod {
+fn resource(name: &str, nonce: &str, start_timestamp: MicroTime) -> Resource {
+    Resource {
+        api_version: "amurant.io/v1".to_string(),
+        kind: "Resource".to_string(),
         metadata: ObjectMeta {
             name: Some(name.to_string()),
             ..Default::default()
         },
-        spec: Some(PodSpec {
-            containers: vec![Container {
-                name: "default-container".to_string(),
-                image: Some(image.to_string()),
-                ..Default::default()
-            }],
-            ..Default::default()
-        }),
-        status: None,
+        spec: ResourceSpec {
+            nonce: nonce.to_string(),
+            start_timestamp: Some(start_timestamp),
+            end_timestamp: None,
+        },
     }
 }

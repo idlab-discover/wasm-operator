@@ -6,5 +6,7 @@ source "${SCRIPT_ROOT}/lib.sh"
 
 check_tool kind
 
+kind delete clusters "${KIND_CLUSTER_NAME}"
+
 kind create cluster \
   --name "${KIND_CLUSTER_NAME}"

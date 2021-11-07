@@ -4,6 +4,8 @@ use http::HeaderMap;
 use log::debug;
 use std::convert::TryFrom;
 use tokio::sync::mpsc::{Sender, UnboundedReceiver};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use crate::abi::rust_v1alpha1::HttpResponse;
 
@@ -15,16 +17,16 @@ pub async fn start_request_executor<S>(
     mut rx: UnboundedReceiver<AbiCommand<Request<Vec<u8>>>>,
     otx: Sender<AsyncResult>,
     ocluster_url: http::Uri,
-    ohttp_client: S,
+    ohttp_client: Arc<Mutex<S>>,
 ) -> anyhow::Result<()>
 where
-    S: Service<Request<Body>, Response = Response<Body>> + Send + 'static + Clone,
+    S: Service<Request<Body>, Response = Response<Body>> + Send + 'static,
     S::Future: Send + 'static,
     S::Error: std::fmt::Debug,
 {
     while let Some(mut http_command) = rx.recv().await {
         let cluster_url = ocluster_url.clone();
-        let http_client = ohttp_client;
+        let http_client = ohttp_client.clone();
         let tx = otx.clone();
         tokio::spawn(async move {
             // Patch the request URI
@@ -44,7 +46,8 @@ where
 
             // Execute the request
             let response = http_client
-                .clone()
+                .lock()
+                .await
                 .call(http_command.value.map(hyper::Body::from))
                 .await
                 .expect("Successful response");

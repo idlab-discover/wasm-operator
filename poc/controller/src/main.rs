@@ -11,7 +11,9 @@ use hyper_tls::HttpsConnector;
 use kube::client::ConfigExt;
 use std::time::Duration;
 use wasmer::{Store, Universal};
-use wasmer_compiler_singlepass::Singlepass;
+use wasmer_compiler_cranelift::Cranelift;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 mod abi;
 mod delay;
@@ -24,7 +26,7 @@ use crate::abi::AbiConfig;
 use crate::modules::{ControllerModule, ControllerModuleMetadata};
 
 fn main() {
-    std::env::set_var("RUST_LOG", "info,controller=debug,cranelift=warn,kube=debug");
+    std::env::set_var("RUST_LOG", "info,controller=debug,cranelift=warn,kube=debug,regalloc=warn,wasmer_compiler_cranelift=warn");
     env_logger::init();
 
     // Bootstrap tokio runtime and kube-rs-async config/client
@@ -52,6 +54,8 @@ fn main() {
         .layer(kubeconfig.base_uri_layer())
         .option_layer(kubeconfig.auth_layer().expect("auth layer is not configurable from kube config"))
         .service(hyper_client);
+    
+    let arc_service = Arc::new(Mutex::new(service));
 
     let mut args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -71,7 +75,7 @@ fn main() {
         let (delay_command_tx, delay_command_rx) = tokio::sync::mpsc::unbounded_channel();
         let (async_result_tx, async_result_rx) = tokio::sync::mpsc::channel(10);
 
-        let store = Store::new(&Universal::new(Singlepass::new()).engine()); // TODO: check this engine
+        let store = Store::new(&Universal::new(Cranelift::new()).engine()); // TODO: check this engine
 
         info!("Starting controllers");
         for (path, mm, wasm_bytes) in mods {
@@ -116,13 +120,13 @@ fn main() {
             requestor_command_rx,
             async_result_tx.clone(),
             cluster_url.clone(),
-            service.clone(),
+            arc_service.clone(),
         ));
         tokio::spawn(http::start_request_stream_executor(
             stream_requestor_command_rx,
             async_result_tx.clone(),
             cluster_url,
-            service,
+            arc_service,
         ));
         tokio::spawn(delay::start_delay_executor(
             delay_command_rx,
@@ -146,7 +150,12 @@ fn start_controller(
     let module_name = module_meta.name.clone();
 
     let (module, duration) = execution_time!({
-        ControllerModule::compile(&store, module_meta, wasm_bytes, abi_config)?
+        ControllerModule::compile(
+            &store,
+            module_meta,
+            wasm_bytes,
+            abi_config,
+        )?
     });
     info!(
         "Compilation time '{}' duration: {} ms",

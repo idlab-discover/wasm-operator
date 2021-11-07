@@ -1,7 +1,8 @@
 FROM alpine:latest AS cargo
 # copy source code & filter files needed to build deps
 WORKDIR /source
-COPY ./kube-rs ./poc .
+COPY ./kube-rs ./kube-rs
+COPY ./poc ./poc
 RUN mkdir /workdir \
     && find . -name 'Cargo.toml' -exec cp --parents '{}' /workdir \; \
     && find . -name 'Cargo.lock' -exec cp --parents '{}' /workdir \; \
@@ -35,7 +36,8 @@ RUN cd poc \
     && rm -rf *
 
 # build releases
-COPY ./kube-rs ./poc .
+COPY ./kube-rs ./kube-rs
+COPY ./poc ./poc
 RUN mv /tmp/target .
 WORKDIR /workdir/poc
 RUN cargo build -p controller --release

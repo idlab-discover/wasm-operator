@@ -27,7 +27,8 @@ impl ControllerModule {
         let abi = meta.abi.get_abi();
 
         let mut wasi_env = WasiState::new(meta.name.clone())
-            .env("RUST_LOG", "debug")
+            .envs(meta.envs.clone())
+            .args(meta.args.clone())
             .finalize()?;
 
         // WASI imports

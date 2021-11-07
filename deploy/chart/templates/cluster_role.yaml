@@ -4,38 +4,8 @@ metadata:
   name: parent-controller
 rules:
 - apiGroups:
-  - ""
+  - amurant
   resources:
-  - pods
-  - services
-  - replicasets
-  - nodes
-  verbs:
-  - list
-  - get
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - services/status
-  verbs:
-  - update
-- apiGroups:
-  - apps
-  resources:
-  - daemonsets
+  - resources
   verbs:
   - "*"
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  verbs:
-  - "*"
-- apiGroups:
-  - "slinky.dev"
-  resources:
-  - simplepods
-  verbs:
-  - "*"
-

@@ -11,6 +11,8 @@ use std::path::PathBuf;
 pub struct ControllerModuleMetadata {
     pub name: String,
     pub abi: AbiVersion,
+    pub envs: Vec<(String, String)>,
+    pub args: Vec<String>,
 }
 
 impl ControllerModuleMetadata {

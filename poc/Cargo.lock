@@ -157,7 +157,7 @@ dependencies = [
  "tower-service",
  "url",
  "wasmer",
- "wasmer-compiler-singlepass",
+ "wasmer-compiler-cranelift",
  "wasmer-wasi",
 ]
 
@@ -414,32 +414,6 @@ name = "dyn-clone"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee2626afccd7561a06cf1367e2950c4718ea04565e20fb5029b6c7d8ad09abcf"
-
-[[package]]
-name = "dynasm"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdc2d9a5e44da60059bd38db2d05cbb478619541b8c79890547861ec1e3194f0"
-dependencies = [
- "bitflags",
- "byteorder",
- "lazy_static",
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "dynasmrt"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42276e3f205fe63887cca255aa9a65a63fb72764c30b9a6252a7c7e46994f689"
-dependencies = [
- "byteorder",
- "dynasm",
- "memmap2",
-]
 
 [[package]]
 name = "either"
@@ -899,6 +873,7 @@ dependencies = [
  "base64",
  "bytes",
  "chrono",
+ "schemars",
  "serde",
  "serde-value",
  "serde_json",
@@ -906,7 +881,17 @@ dependencies = [
 
 [[package]]
 name = "kube"
-version = "0.61.0"
+version = "0.63.2"
+dependencies = [
+ "k8s-openapi",
+ "kube-client",
+ "kube-core",
+ "kube-derive",
+]
+
+[[package]]
+name = "kube-client"
+version = "0.63.2"
 dependencies = [
  "base64",
  "bytes",
@@ -922,11 +907,10 @@ dependencies = [
  "jsonpath_lib",
  "k8s-openapi",
  "kube-core",
- "kube-derive",
  "kube-runtime-abi",
  "openssl",
  "pem",
- "pin-project 1.0.8",
+ "pin-project",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -941,7 +925,7 @@ dependencies = [
 
 [[package]]
 name = "kube-core"
-version = "0.61.0"
+version = "0.63.2"
 dependencies = [
  "chrono",
  "form_urlencoded",
@@ -956,7 +940,7 @@ dependencies = [
 
 [[package]]
 name = "kube-derive"
-version = "0.61.0"
+version = "0.63.2"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -967,20 +951,20 @@ dependencies = [
 
 [[package]]
 name = "kube-runtime"
-version = "0.61.0"
+version = "0.63.2"
 dependencies = [
  "dashmap",
  "derivative",
  "futures",
  "json-patch",
  "k8s-openapi",
- "kube",
+ "kube-client",
  "kube-runtime-abi",
- "pin-project 1.0.8",
+ "pin-project",
  "serde",
  "serde_json",
  "smallvec",
- "snafu",
+ "thiserror",
  "tracing",
  "wasm-delay-queue",
 ]
@@ -1315,31 +1299,11 @@ checksum = "d4fd5641d01c8f18a23da7b6fe29298ff4b55afcccdf78973b24cf3175fee32e"
 
 [[package]]
 name = "pin-project"
-version = "0.4.28"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "918192b5c59119d51e0cd221f4d49dde9112824ba717369e903c97d076083d0f"
-dependencies = [
- "pin-project-internal 0.4.28",
-]
-
-[[package]]
-name = "pin-project"
 version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "576bc800220cc65dac09e99e97b08b358cfab6e17078de8dc5fee223bd2d0c08"
 dependencies = [
- "pin-project-internal 1.0.8",
-]
-
-[[package]]
-name = "pin-project-internal"
-version = "0.4.28"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3be26700300be6d9d23264c73211d8190e755b6b5ca7a1b28230025511b52a5e"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
+ "pin-project-internal",
 ]
 
 [[package]]
@@ -1788,7 +1752,7 @@ dependencies = [
 name = "simple-pod-example"
 version = "0.1.0"
 dependencies = [
- "env_logger",
+ "chrono",
  "futures",
  "k8s-openapi",
  "kube",
@@ -1820,8 +1784,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eab12d3c261b2308b0d80c26fffb58d17eba81a4be97890101f416b478c79ca7"
 dependencies = [
  "doc-comment",
- "futures-core",
- "pin-project 0.4.28",
  "snafu-derive",
 ]
 
@@ -2028,7 +1990,7 @@ checksum = "c00e500fff5fa1131c866b246041a6bf96da9c965f8fe4128cb1421f23e93c00"
 dependencies = [
  "futures-core",
  "futures-util",
- "pin-project 1.0.8",
+ "pin-project",
  "pin-project-lite",
  "tokio",
  "tokio-util",
@@ -2049,7 +2011,7 @@ dependencies = [
  "futures-util",
  "http",
  "http-body",
- "pin-project 1.0.8",
+ "pin-project",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -2274,25 +2236,6 @@ dependencies = [
  "rayon",
  "smallvec",
  "tracing",
- "wasmer-compiler",
- "wasmer-types",
- "wasmer-vm",
-]
-
-[[package]]
-name = "wasmer-compiler-singlepass"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9429b9f7708c582d855b1787f09c7029ff23fb692550d4a1cc351c8ea84c3014"
-dependencies = [
- "byteorder",
- "dynasm",
- "dynasmrt",
- "lazy_static",
- "loupe",
- "more-asserts",
- "rayon",
- "smallvec",
  "wasmer-compiler",
  "wasmer-types",
  "wasmer-vm",
