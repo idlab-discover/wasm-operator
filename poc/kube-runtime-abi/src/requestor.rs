@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
 use super::{start_future, start_stream};
 use futures::Stream;
+use serde::{Deserialize, Serialize};
 
 #[link(wasm_import_module = "http-proxy-abi")]
 extern "C" {
@@ -62,8 +62,7 @@ pub async fn execute_request(req: http::Request<Vec<u8>>) -> http::Response<Vec<
     let inner_request: HttpRequest = req.into();
     let bytes = bincode::serialize(&inner_request).unwrap();
 
-    let async_request_id: u64 =
-        unsafe { request(bytes.as_ptr(), bytes.len(), 0) }.into();
+    let async_request_id: u64 = unsafe { request(bytes.as_ptr(), bytes.len(), 0) };
 
     let response_raw = start_future(async_request_id).await.unwrap();
 
@@ -82,7 +81,10 @@ struct HttpResponseStream {
 }
 
 impl HttpResponseStream {
-    fn into(self, body_stream: impl Stream<Item=Vec<u8>>) -> http::Response<impl Stream<Item=Vec<u8>>> {
+    fn into(
+        self,
+        body_stream: impl Stream<Item = Vec<u8>>,
+    ) -> http::Response<impl Stream<Item = Vec<u8>>> {
         let mut builder = http::response::Builder::new().status(self.status_code);
 
         for (h, v) in self.headers.iter() {
@@ -93,12 +95,13 @@ impl HttpResponseStream {
     }
 }
 
-pub async fn execute_request_stream(req: http::Request<Vec<u8>>) -> http::Response<impl Stream<Item=Vec<u8>>> {
+pub async fn execute_request_stream(
+    req: http::Request<Vec<u8>>,
+) -> http::Response<impl Stream<Item = Vec<u8>>> {
     let inner_request: HttpRequest = req.into();
     let bytes = bincode::serialize(&inner_request).unwrap();
 
-    let async_request_id: u64 =
-        unsafe { request(bytes.as_ptr(), bytes.len(), 1) }.into();
+    let async_request_id: u64 = unsafe { request(bytes.as_ptr(), bytes.len(), 1) };
 
     let response_raw = start_future(async_request_id).await.unwrap();
 

@@ -1,6 +1,6 @@
-use std::fmt;
 use crate::{Duration, Instant};
 use pin_project_lite::pin_project;
+use std::fmt;
 use std::future::Future;
 use std::panic::Location;
 use std::pin::Pin;
@@ -41,7 +41,7 @@ use std::task::{self, Poll};
 #[cfg_attr(docsrs, doc(alias = "delay_until"))]
 #[cfg_attr(tokio_track_caller, track_caller)]
 pub fn sleep_until(deadline: Instant) -> Sleep {
-    return Sleep::new_timeout(deadline, None);
+    Sleep::new_timeout(deadline, None)
 }
 
 /// Waits until `duration` has elapsed.
@@ -207,12 +207,12 @@ impl Sleep {
         match deadline.checked_duration_since(now) {
             Some(dur) => Sleep {
                 entry: Box::pin(kube_runtime_abi::register_delay(dur)),
-                inner
+                inner,
             },
             None => Sleep {
                 entry: Box::pin(std::future::ready(())),
-                inner
-            }
+                inner,
+            },
         }
     }
 
@@ -229,7 +229,10 @@ impl Sleep {
     ///
     /// A `Sleep` instance is elapsed when the requested duration has elapsed.
     pub fn is_elapsed(&self) -> bool {
-        self.inner.deadline.checked_duration_since(Instant::now()).is_none()
+        self.inner
+            .deadline
+            .checked_duration_since(Instant::now())
+            .is_none()
     }
 
     /// Resets the `Sleep` instance to a new deadline.

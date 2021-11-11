@@ -1,14 +1,14 @@
-use std::collections::HashMap;
-use std::sync::{Mutex, Arc, Once};
-use std::pin::Pin;
-use std::future::Future;
-use std::task::{Context, Poll, Waker};
 use futures::executor::{LocalPool, LocalSpawner};
-use std::cell::{RefCell};
-use std::ops::Deref;
-use std::mem;
-use std::rc::Rc;
 use futures::Stream;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::future::Future;
+use std::mem;
+use std::ops::Deref;
+use std::pin::Pin;
+use std::rc::Rc;
+use std::sync::{Arc, Mutex, Once};
+use std::task::{Context, Poll, Waker};
 
 // TODO: remove this
 static mut SPAWNER: Option<LocalSpawner> = None;
@@ -30,7 +30,7 @@ pub fn get_mut_executor() -> Rc<RefCell<LocalPool>> {
         let pool = (*SINGLETON).clone();
         SPAWNER = Some(pool.borrow_mut().spawner());
 
-        return pool
+        pool
     }
 }
 
@@ -44,13 +44,15 @@ pub fn get_spawner() -> Result<LocalSpawner, ()> {
 
 fn get_pending_futures() -> Rc<RefCell<HashMap<u64, Arc<Mutex<AbiFutureState>>>>> {
     // Initialize it to a null value
-    static mut SINGLETON: *const Rc<RefCell<HashMap<u64, Arc<Mutex<AbiFutureState>>>>> = 0 as *const Rc<RefCell<HashMap<u64, Arc<Mutex<AbiFutureState>>>>>;
+    static mut SINGLETON: *const Rc<RefCell<HashMap<u64, Arc<Mutex<AbiFutureState>>>>> =
+        0 as *const Rc<RefCell<HashMap<u64, Arc<Mutex<AbiFutureState>>>>>;
     static ONCE: Once = Once::new();
 
     unsafe {
         ONCE.call_once(|| {
             // Make it
-            let singleton: Rc<RefCell<HashMap<u64, Arc<Mutex<AbiFutureState>>>>> = Rc::new(RefCell::new(HashMap::new()));
+            let singleton: Rc<RefCell<HashMap<u64, Arc<Mutex<AbiFutureState>>>>> =
+                Rc::new(RefCell::new(HashMap::new()));
 
             // Put it in the heap so it can outlive this call
             SINGLETON = mem::transmute(Box::new(singleton));
@@ -61,32 +63,34 @@ fn get_pending_futures() -> Rc<RefCell<HashMap<u64, Arc<Mutex<AbiFutureState>>>>
 }
 
 pub fn start_future(future_id: u64) -> AbiFuture {
-    let state = Arc::new(Mutex::new(
-        AbiFutureState {
-            value: None,
-            completed: false,
-            waker: None
-        }
-    ));
-    get_pending_futures().deref().borrow_mut().insert(future_id, state.clone());
+    let state = Arc::new(Mutex::new(AbiFutureState {
+        value: None,
+        completed: false,
+        waker: None,
+    }));
+    get_pending_futures()
+        .deref()
+        .borrow_mut()
+        .insert(future_id, state.clone());
 
     AbiFuture {
-        shared_state: state
+        shared_state: state,
     }
 }
 
 pub fn start_stream(stream_id: u64) -> AbiStream {
-    let state = Arc::new(Mutex::new(
-        AbiFutureState {
-            value: None,
-            completed: false,
-            waker: None
-        }
-    ));
-    get_pending_futures().deref().borrow_mut().insert(stream_id, state.clone());
+    let state = Arc::new(Mutex::new(AbiFutureState {
+        value: None,
+        completed: false,
+        waker: None,
+    }));
+    get_pending_futures()
+        .deref()
+        .borrow_mut()
+        .insert(stream_id, state.clone());
 
     AbiStream {
-        shared_state: state
+        shared_state: state,
     }
 }
 
@@ -98,13 +102,8 @@ pub extern "C" fn wakeup_future(future_id: u64, ptr: *const u8, len: usize) {
         let mut state = state_arc.lock().unwrap();
 
         if !ptr.is_null() {
-            state.value = Some(unsafe {
-                Vec::from_raw_parts(
-                    ptr as *mut u8,
-                    len as usize,
-                    len as usize,
-                )
-            });
+            state.value =
+                Some(unsafe { Vec::from_raw_parts(ptr as *mut u8, len as usize, len as usize) });
         }
 
         state.completed = true;
@@ -128,13 +127,8 @@ pub extern "C" fn wakeup_stream(stream_id: u64, ptr: *const u8, len: usize) {
 
         let has_value = !ptr.is_null();
         if has_value {
-            state.value = Some(unsafe {
-                Vec::from_raw_parts(
-                    ptr as *mut u8,
-                    len as usize,
-                    len as usize,
-                )
-            });
+            state.value =
+                Some(unsafe { Vec::from_raw_parts(ptr as *mut u8, len as usize, len as usize) });
         }
         state.completed = true;
         let waker = state.waker.take();

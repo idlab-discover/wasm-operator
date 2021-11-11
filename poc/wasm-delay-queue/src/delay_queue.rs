@@ -6,11 +6,11 @@
 
 use crate::wheel::{self, Wheel};
 
-use futures_core::ready;
 use super::error::Error;
-use super::Sleep;
 use super::sleep_until;
+use super::Sleep;
 use super::{Duration, Instant};
+use futures_core::ready;
 
 use slab::Slab;
 use std::cmp;

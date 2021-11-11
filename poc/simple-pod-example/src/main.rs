@@ -1,30 +1,27 @@
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::MicroTime;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 
+use futures::task::SpawnExt;
 use kube::{
     api::{ListParams, PostParams},
-    Api, Client, CustomResource,
-    ResourceExt
+    Api, Client, CustomResource, ResourceExt,
 };
 use kube_runtime::controller::{Context, Controller, ReconcilerAction};
-use futures::task::SpawnExt;
 
-use std::env;
+use chrono::{Local, Utc};
+use futures::StreamExt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::ops::Deref;
-use futures::StreamExt;
-use std::time::{Duration};
 use snafu::Snafu;
-use chrono::{Local, Utc};
+use std::env;
+use std::ops::Deref;
+use std::time::Duration;
 
 #[derive(Debug, Snafu)]
 enum Error {
     #[snafu(display("Kube error: {}", source))]
     #[snafu(context(false))]
-    UnknownKubeError{
-        source: kube::Error
-    }
+    UnknownKubeError { source: kube::Error },
 }
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
@@ -50,7 +47,11 @@ struct Data {
 fn main() {
     let exec = kube_runtime_abi::get_mut_executor();
     // Start the main
-    exec.deref().borrow_mut().spawner().spawn(main_async()).unwrap();
+    exec.deref()
+        .borrow_mut()
+        .spawner()
+        .spawn(main_async())
+        .unwrap();
     // Give a little push to the executor
     exec.deref().borrow_mut().run_until_stalled();
 }
@@ -63,10 +64,13 @@ async fn main_async() {
 
     Controller::new(in_resources, ListParams::default())
         .run(reconcile, error_policy, Context::new(Data { client }))
-        .for_each(|res| async move { match res {
-            Ok((obj, _)) => println!("Reconciled {:?}", obj),
-            Err(e) => println!("Reconcile error: {:?}", e),
-        }}).await;
+        .for_each(|res| async move {
+            match res {
+                Ok((obj, _)) => println!("Reconciled {:?}", obj),
+                Err(e) => println!("Reconcile error: {:?}", e),
+            }
+        })
+        .await;
 }
 
 /// Controller triggers this whenever our main object or our children changed
@@ -86,26 +90,34 @@ async fn reconcile(in_resource: Resource, ctx: Context<Data>) -> Result<Reconcil
                 existing.spec.nonce = nonce;
                 existing.spec.start_timestamp = Some(now_timestamp);
                 existing.spec.end_timestamp = None;
-                out_resources.replace(&existing.name(), &PostParams::default(), &existing).await?;
+                out_resources
+                    .replace(&existing.name(), &PostParams::default(), &existing)
+                    .await?;
             } else if existing.spec.end_timestamp.is_none() {
                 println!("end_timestamp is None, update end_timestamp");
                 existing.spec.end_timestamp = Some(now_timestamp);
-                out_resources.replace(&existing.name(), &PostParams::default(), &existing).await?;
+                out_resources
+                    .replace(&existing.name(), &PostParams::default(), &existing)
+                    .await?;
             } else {
                 println!("end_timestamp is set, doing nothing");
             }
         }
         Err(kube::Error::Api(ae)) if ae.code == 404 => {
             println!("Creating pod");
-            out_resources.create(
-                &PostParams::default(),
-                &resource(&name, &nonce, now_timestamp)
-            ).await?;
+            out_resources
+                .create(
+                    &PostParams::default(),
+                    &resource(&name, &nonce, now_timestamp),
+                )
+                .await?;
         }
         Err(e) => Err(Error::UnknownKubeError { source: e })?,
     };
 
-    Ok(ReconcilerAction { requeue_after: None })
+    Ok(ReconcilerAction {
+        requeue_after: None,
+    })
 }
 
 fn resource(name: &str, nonce: &str, start_timestamp: MicroTime) -> Resource {

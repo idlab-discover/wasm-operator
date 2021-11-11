@@ -13,9 +13,8 @@ abi-rust-v1alpha1 = []
 
 [dependencies]
 log = "^0.4.14"
-wasmer = "^2.0.0"
-wasmer-compiler-cranelift = "^2.0.0"
-wasmer-wasi = "^2.0.0"
+wasmtime = { version = "^0.31.0", features = ["async"] }
+wasmtime-wasi = { version = "^0.31.0", features = ["tokio"] }
 kube = { path = "../../kube-rs/kube", version = "0.63.1", features = ["native-tls"] }
 hyper = { version = "^0.14.13", features = ["client", "http2", "stream", "tcp"] }
 hyper-tls = "^0.5.0"

@@ -14,7 +14,7 @@ mkdir temp/wasm || true
 cp ../deploy/chart/templates/crd.yaml temp/00_crd.yaml
 kubectl apply -f ./temp/00_crd.yaml
 
-NR_CONTROLLERS=100
+NR_CONTROLLERS=1000
 
 echo "" > temp/01_namespaces.yaml
 
@@ -54,4 +54,4 @@ EOF
 
 kubectl apply -f ./temp/
 
-cargo run -p controller -- ./temp/wasm
+cargo run -p controller --release -- ./temp/wasm

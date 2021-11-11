@@ -6,6 +6,9 @@ members = [
   "wasm-delay-queue",
 ]
 
+[profile.release]
+lto = true
+
 [profile.release.package.controller]
 opt-level = 3
 
