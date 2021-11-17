@@ -11,7 +11,8 @@ kind delete clusters "${KIND_CLUSTER_NAME}"
 kind create cluster \
   --name "${KIND_CLUSTER_NAME}" \
 
-# docker exec -it e9df5f9d0e8e /bin/bash
-# ip addr
 
-# curl --insecure https://172.19.0.2:6443
+## networking bug workaround
+container_id=$(docker ps -q -f name="${KIND_CLUSTER_NAME}-control-plane")
+intern_ip=$(docker exec $container_id /bin/sh -c "/sbin/ip -o -4 addr list eth0 | awk '{print \$4}' | cut -d/ -f1")
+sed -i "s|server: https://127.0.0.1:.*|server: https://$intern_ip:6443|g" ~/.kube/config

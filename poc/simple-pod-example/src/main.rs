@@ -27,9 +27,8 @@ enum Error {
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[kube(kind = "Resource", group = "amurant.io", version = "v1", namespaced)]
 pub struct ResourceSpec {
-    nonce: String,
-    start_timestamp: Option<MicroTime>,
-    end_timestamp: Option<MicroTime>,
+    nonce: i64,
+    updated_at: Option<MicroTime>,
 }
 
 /// The controller triggers this on reconcile errors
@@ -44,16 +43,21 @@ struct Data {
     client: Client,
 }
 
+#[cfg(target_arch = "wasm32")]
 fn main() {
     let exec = kube_runtime_abi::get_mut_executor();
     // Start the main
-    exec.deref()
-        .borrow_mut()
-        .spawner()
-        .spawn(main_async())
-        .unwrap();
+    exec.deref().borrow_mut().spawner().spawn(main_async()).unwrap();
     // Give a little push to the executor
     exec.deref().borrow_mut().run_until_stalled();
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[tokio::main]
+async fn main() {
+    main_async()
+    .await
+    .unwrap();
 }
 
 async fn main_async() {
@@ -83,24 +87,18 @@ async fn reconcile(in_resource: Resource, ctx: Context<Data>) -> Result<Reconcil
     let out_namespace = env::var("OUT_NAMESPACE").unwrap_or("default".to_string());
     let out_resources: Api<Resource> = Api::namespaced(client.clone(), out_namespace.as_str());
     let now_timestamp = MicroTime(Local::now().with_timezone(&Utc));
+
     match out_resources.get(&name).await {
         Ok(mut existing) => {
             if nonce != existing.spec.nonce {
                 println!("nonce != current nonce, resetting resource");
                 existing.spec.nonce = nonce;
-                existing.spec.start_timestamp = Some(now_timestamp);
-                existing.spec.end_timestamp = None;
-                out_resources
-                    .replace(&existing.name(), &PostParams::default(), &existing)
-                    .await?;
-            } else if existing.spec.end_timestamp.is_none() {
-                println!("end_timestamp is None, update end_timestamp");
-                existing.spec.end_timestamp = Some(now_timestamp);
+                existing.spec.updated_at = Some(now_timestamp);
                 out_resources
                     .replace(&existing.name(), &PostParams::default(), &existing)
                     .await?;
             } else {
-                println!("end_timestamp is set, doing nothing");
+                println!("nonce has not changed, doing nothing");
             }
         }
         Err(kube::Error::Api(ae)) if ae.code == 404 => {
@@ -120,7 +118,7 @@ async fn reconcile(in_resource: Resource, ctx: Context<Data>) -> Result<Reconcil
     })
 }
 
-fn resource(name: &str, nonce: &str, start_timestamp: MicroTime) -> Resource {
+fn resource(name: &str, nonce: &i64, start_timestamp: MicroTime) -> Resource {
     Resource {
         api_version: "amurant.io/v1".to_string(),
         kind: "Resource".to_string(),
@@ -129,9 +127,8 @@ fn resource(name: &str, nonce: &str, start_timestamp: MicroTime) -> Resource {
             ..Default::default()
         },
         spec: ResourceSpec {
-            nonce: nonce.to_string(),
-            start_timestamp: Some(start_timestamp),
-            end_timestamp: None,
+            nonce: nonce.clone(),
+            updated_at: Some(start_timestamp),
         },
     }
 }

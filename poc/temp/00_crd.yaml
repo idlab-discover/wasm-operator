@@ -16,10 +16,8 @@ spec:
             type: object
             properties:
               nonce:
-                type: string
-              start_timestamp:
-                type: string
-              end_timestamp:
+                type: integer
+              updated_at:
                 type: string
   scope: Namespaced
   names:

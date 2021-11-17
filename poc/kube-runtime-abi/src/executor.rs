@@ -10,7 +10,6 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex, Once};
 use std::task::{Context, Poll, Waker};
 
-// TODO: remove this
 static mut SPAWNER: Option<LocalSpawner> = None;
 
 pub fn get_mut_executor() -> Rc<RefCell<LocalPool>> {
