@@ -15,6 +15,7 @@ use futures::StreamExt;
 mod environment;
 pub mod http_engine;
 pub use environment::Environment;
+pub mod controller_ctx;
 
 pub enum Command {
     StartModule(ControllerModuleMetadata, std::path::PathBuf),

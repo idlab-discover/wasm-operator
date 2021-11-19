@@ -1,9 +1,7 @@
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
-use tokio::sync::mpsc::UnboundedSender;
 use wasmtime::{AsContextMut, Caller, Instance, Linker};
-use wasmtime_wasi::WasiCtx;
+use crate::runtime::controller_ctx::ControllerCtx;
 
 pub mod abicommand;
 pub mod opcall;
@@ -11,26 +9,12 @@ pub mod opcall;
 use crate::runtime::http_engine::HttpRequest;
 pub use abicommand::{AsyncRequest, AsyncRequestValue, AsyncResult, AsyncType};
 
-pub fn register_imports(linker: &mut Linker<WasiCtx>) -> anyhow::Result<()> {
+pub fn register_imports(linker: &mut Linker<ControllerCtx>) -> anyhow::Result<()> {
     linker.func_wrap("http-proxy-abi", "request", abi_request)?;
     linker.func_wrap("http-proxy-abi", "request_stream", abi_request)?;
     linker.func_wrap("delay-abi", "delay", abi_delay)?;
 
     Ok(())
-}
-
-pub fn setup_wasi_table(
-    wasi_ctx: &mut WasiCtx,
-    async_client_id: u64,
-    async_request_sender: UnboundedSender<AsyncRequest>,
-) {
-    let async_request_id_counter = Arc::new(AtomicU64::new(0));
-    wasi_ctx
-        .table()
-        .insert_at(0, Box::new((async_client_id, async_request_id_counter)));
-    wasi_ctx
-        .table()
-        .insert_at(1, Box::new(async_request_sender.clone()));
 }
 
 pub(crate) async fn start_controller<S>(mut store: S, instance: &Instance) -> anyhow::Result<()>
@@ -111,7 +95,7 @@ where
     Ok(())
 }
 
-fn abi_request(mut caller: Caller<'_, WasiCtx>, ptr: u32, size: u32, stream: u32) -> u64 {
+fn abi_request(mut caller: Caller<'_, ControllerCtx>, ptr: u32, size: u32, stream: u32) -> u64 {
     let inner_request: HttpRequest = {
         let memory = caller
             .get_export("memory")
@@ -124,16 +108,12 @@ fn abi_request(mut caller: Caller<'_, WasiCtx>, ptr: u32, size: u32, stream: u32
         bincode::deserialize(inner_req_bytes).expect("deserialize failed")
     };
 
-    let table = caller.data_mut().table();
+    let controller_ctx = caller.data_mut();
 
-    let (_, async_request_id_counter) = table
-        .get::<(u64, Arc<AtomicU64>)>(0)
-        .expect("counter not found");
-    let async_request_id = async_request_id_counter.fetch_add(1, Ordering::SeqCst);
+    let async_request_id = controller_ctx.async_request_id_counter.fetch_add(1, Ordering::SeqCst);
 
-    table
-        .get::<UnboundedSender<AsyncRequest>>(1)
-        .expect("sender not found")
+    controller_ctx
+        .async_request_sender
         .send(AsyncRequest {
             async_request_id: async_request_id,
             value: (if stream == 0 {
@@ -147,17 +127,13 @@ fn abi_request(mut caller: Caller<'_, WasiCtx>, ptr: u32, size: u32, stream: u32
     async_request_id
 }
 
-fn abi_delay(mut caller: Caller<'_, WasiCtx>, millis: u64) -> u64 {
-    let table = caller.data_mut().table();
+fn abi_delay(mut caller: Caller<'_, ControllerCtx>, millis: u64) -> u64 {
+    let controller_ctx = caller.data_mut();
 
-    let (_, async_request_id_counter) = table
-        .get::<(u64, Arc<AtomicU64>)>(0)
-        .expect("counter not found");
-    let async_request_id = async_request_id_counter.fetch_add(1, Ordering::SeqCst);
+    let async_request_id = controller_ctx.async_request_id_counter.fetch_add(1, Ordering::SeqCst);
 
-    table
-        .get::<UnboundedSender<AsyncRequest>>(1)
-        .expect("sender not found")
+    controller_ctx
+        .async_request_sender
         .send(AsyncRequest {
             async_request_id: async_request_id,
             value: AsyncRequestValue::Delay(Duration::from_millis(millis)),

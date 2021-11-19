@@ -9,15 +9,14 @@ use crate::modules::ControllerModule;
 use crate::modules::ControllerModuleMetadata;
 use tokio::sync::mpsc::UnboundedSender;
 use wasmtime_wasi::tokio::WasiCtxBuilder;
-use wasmtime_wasi::WasiCtx;
+use crate::runtime::controller_ctx::ControllerCtx;
 
-use crate::abi::setup_wasi_table;
 use crate::abi::AsyncRequest;
 
 #[derive(Clone)]
 pub struct Environment {
     engine: Engine,
-    linker: Arc<Linker<WasiCtx>>,
+    linker: Arc<Linker<ControllerCtx>>,
 }
 
 impl Environment {
@@ -31,7 +30,7 @@ impl Environment {
         let engine = Engine::new(&config)?;
 
         let mut linker = Linker::new(&engine);
-        wasmtime_wasi::tokio::add_to_linker(&mut linker, |cx| cx)?;
+        wasmtime_wasi::tokio::add_to_linker(&mut linker, |cx: &mut ControllerCtx| &mut cx.wasi_ctx)?;
 
         register_imports(&mut linker)?;
 
@@ -48,16 +47,16 @@ impl Environment {
         async_client_id: u64,
         async_request_sender: UnboundedSender<AsyncRequest>,
     ) -> anyhow::Result<ControllerModule> {
-        let mut wasi_env = WasiCtxBuilder::new()
+        let wasi_ctx = WasiCtxBuilder::new()
             .inherit_stdout()
             .inherit_stderr()
             .envs(meta.envs.as_ref())?
             .args(meta.args.as_ref())?
             .build();
 
-        setup_wasi_table(&mut wasi_env, async_client_id, async_request_sender);
+        let controller_ctx = ControllerCtx::new(wasi_ctx, async_client_id, async_request_sender);
 
-        let mut store = Store::new(&self.engine, wasi_env);
+        let mut store = Store::new(&self.engine, controller_ctx);
 
         // Compile our webassembly into an `Instance`.
         let module = Module::from_file(&self.engine, wasm_path)?;

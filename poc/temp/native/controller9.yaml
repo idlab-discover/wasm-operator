@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: controller9
+  namespace: controller-namespace
+spec:
+  containers:
+  - name: controller
+    image: "github.com/amurant/native_controller:local"
+    env:
+    - name: IN_NAMESPACE
+      value: "namespace9"
+    - name: OUT_NAMESPACE
+      value: "namespace0"

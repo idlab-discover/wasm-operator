@@ -49,453 +49,129 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: namespace9
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace10
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace11
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace12
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace13
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace14
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace15
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace16
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace17
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace18
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace19
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace20
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace21
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace22
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace23
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace24
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace25
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace26
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace27
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace28
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace29
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace30
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace31
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace32
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace33
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace34
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace35
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace36
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace37
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace38
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace39
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace40
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace41
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace42
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace43
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace44
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace45
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace46
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace47
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace48
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace49
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace50
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace51
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace52
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace53
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace54
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace55
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace56
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace57
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace58
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace59
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace60
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace61
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace62
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace63
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace64
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace65
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace66
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace67
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace68
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace69
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace70
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace71
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace72
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: namespace73
----
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace74
+  name: "controller-namespace"
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace75
+  name: namespace0
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace76
+  name: namespace1
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace77
+  name: namespace2
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace78
+  name: namespace3
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace79
+  name: namespace4
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace80
+  name: namespace5
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace81
+  name: namespace6
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace82
+  name: namespace7
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace83
+  name: namespace8
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace84
----
+  name: namespace9
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace85
+  name: "controller-namespace"
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace86
+  name: namespace0
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace87
+  name: namespace1
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace88
+  name: namespace2
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace89
+  name: namespace3
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace90
+  name: namespace4
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace91
+  name: namespace5
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace92
+  name: namespace6
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace93
+  name: namespace7
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace94
+  name: namespace8
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace95
----
+  name: namespace9
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace96
+  name: "controller-namespace"
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace97
----
+  name: namespace0
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace98
+  name: "controller-namespace"
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: namespace99
+  name: namespace0

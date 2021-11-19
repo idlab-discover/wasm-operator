@@ -1,7 +1,6 @@
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::MicroTime;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 
-use futures::task::SpawnExt;
 use kube::{
     api::{ListParams, PostParams},
     Api, Client, CustomResource, ResourceExt,
@@ -14,8 +13,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
 use std::env;
-use std::ops::Deref;
 use std::time::Duration;
+
+#[cfg(target_arch = "wasm32")]
+use {futures::task::SpawnExt, std::ops::Deref};
 
 #[derive(Debug, Snafu)]
 enum Error {
@@ -56,12 +57,11 @@ fn main() {
 #[tokio::main]
 async fn main() {
     main_async()
-    .await
-    .unwrap();
+    .await;
 }
 
 async fn main_async() {
-    let client = Client::default();
+    let client = Client::try_default().await.expect("could not create kube client");
 
     let in_namespace = env::var("IN_NAMESPACE").unwrap_or("default".to_string());
     let in_resources: Api<Resource> = Api::namespaced(client.clone(), in_namespace.as_str());

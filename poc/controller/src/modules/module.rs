@@ -22,12 +22,12 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::Mutex as MutexAsync;
 use tower_service::Service;
 use wasmtime::{Instance, Store};
-use wasmtime_wasi::WasiCtx;
+use crate::runtime::controller_ctx::ControllerCtx;
 
 pub struct ControllerModule {
     meta: ControllerModuleMetadata,
     instance: Instance,
-    store: Store<WasiCtx>,
+    store: Store<ControllerCtx>,
     pending_ops: FuturesUnordered<OpCall<anyhow::Result<()>>>,
 }
 
@@ -35,7 +35,7 @@ impl ControllerModule {
     pub(crate) fn new(
         meta: ControllerModuleMetadata,
         instance: Instance,
-        store: Store<WasiCtx>,
+        store: Store<ControllerCtx>,
     ) -> Self {
         Self {
             meta: meta,

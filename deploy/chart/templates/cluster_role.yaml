@@ -4,7 +4,7 @@ metadata:
   name: parent-controller
 rules:
 - apiGroups:
-  - amurant
+  - amurant.io
   resources:
   - resources
   verbs:

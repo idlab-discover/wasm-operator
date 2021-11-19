@@ -17,7 +17,7 @@ mod runtime;
 use crate::modules::ControllerModuleMetadata;
 
 fn main() {
-    std::env::set_var("RUST_LOG", "info,controller=debug,cranelift=warn,kube=debug,regalloc=warn,wasmer_compiler_cranelift=warn");
+    std::env::set_var("RUST_LOG", "info,wasi_common=debug,controller=debug,cranelift=warn,kube=debug");
     env_logger::init();
 
     // Bootstrap tokio runtime and kube-rs-async config/client

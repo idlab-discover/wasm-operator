@@ -1146,6 +1146,8 @@ dependencies = [
  "serde_json",
  "smallvec",
  "thiserror",
+ "tokio",
+ "tokio-util",
  "tracing",
  "wasm-delay-queue",
 ]
@@ -1920,6 +1922,7 @@ dependencies = [
  "serde",
  "serde_json",
  "snafu",
+ "tokio",
 ]
 
 [[package]]
@@ -2153,6 +2156,7 @@ dependencies = [
  "futures-sink",
  "log",
  "pin-project-lite",
+ "slab",
  "tokio",
 ]
 

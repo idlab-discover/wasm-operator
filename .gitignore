@@ -1,4 +1,5 @@
 **/target
+**/temp
 **/*.wasm
 **/.idea
 wasm
