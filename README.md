@@ -1,3 +1,12 @@
+# Master thesis
+
+## Build
+
+- install rust
+- install golang
+- install sccache: https://github.com/mozilla/sccache/releases/tag/v0.2.15
+https://github.com/mozilla/sccache/releases/download/v0.2.15/sccache-v0.2.15-x86_64-unknown-linux-musl.tar.gz
+
 # Extending Kubernetes API in-process
 
 Project structure:

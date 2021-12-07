@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-set -e
+set -o errexit
+set -o nounset
+set -o pipefail
 
-SCRIPT_ROOT=$(dirname "${BASH_SOURCE}")
+SCRIPT_ROOT=$(realpath $(dirname "${BASH_SOURCE}"))
 source "${SCRIPT_ROOT}/lib.sh"
 
 check_tool kind
@@ -9,8 +11,7 @@ check_tool kind
 kind delete clusters "${KIND_CLUSTER_NAME}"
 
 kind create cluster \
-  --name "${KIND_CLUSTER_NAME}" \
-
+  --name "${KIND_CLUSTER_NAME}"
 
 ## networking bug workaround
 container_id=$(docker ps -q -f name="${KIND_CLUSTER_NAME}-control-plane")

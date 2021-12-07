@@ -1,0 +1,48 @@
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: custom-controller
+rules:
+- apiGroups:
+  - amurant.io
+  resources:
+  - testresources
+  verbs:
+  - "*"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: custom-controller
+  namespace: native-golang
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: custom-controller
+  namespace: native-rust
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: custom-controller
+  namespace: wasm-rust
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: custom-controller
+subjects:
+- kind: ServiceAccount
+  name: custom-controller
+  namespace: native-golang
+- kind: ServiceAccount
+  name: custom-controller
+  namespace: native-rust
+- kind: ServiceAccount
+  name: custom-controller
+  namespace: wasm-rust
+roleRef:
+  kind: ClusterRole
+  name: custom-controller
+  apiGroup: rbac.authorization.k8s.io

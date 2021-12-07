@@ -2,4 +2,4 @@
 **/temp
 **/*.wasm
 **/.idea
-wasm
+**/bin/
