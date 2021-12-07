@@ -6,4 +6,4 @@ source "${SCRIPT_ROOT}/lib.sh"
 
 cd "${SCRIPT_ROOT}/../poc"
 
-cargo build -p simple-pod-example --release --features client
+cargo build -p ring-pod-example --release --features client

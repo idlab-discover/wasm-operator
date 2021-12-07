@@ -56,8 +56,12 @@ fn main() {
     if args.len() < 2 {
         panic!("Usage: {} <modules-dir>", args.remove(0))
     }
+
     let path = PathBuf::from(args.remove(1));
     info!("Going to load from {}", path.to_str().unwrap());
+
+    let cache_path = path.join("cache");
+
     let mods = ControllerModuleMetadata::load_modules_from_dir(path)
         .expect("Cannot load the modules from the provided dir");
 
@@ -68,6 +72,7 @@ fn main() {
             runtime_command_receiver,
             cluster_url,
             arc_service.clone(),
+            cache_path,
         ));
 
         tokio::spawn(async move {

@@ -1,4 +1,5 @@
 use anyhow::Error;
+use anyhow::{Context, Result};
 use std::sync::Arc;
 use wasmtime::{Config, Engine, Linker, Module, Store};
 // For this example we want to use the async version of wasmtime_wasi.
@@ -40,10 +41,31 @@ impl Environment {
         })
     }
 
+    pub async fn cache_precompile(
+        &self,
+        wasm_path: impl AsRef<std::path::Path>,
+        cache_path: impl AsRef<std::path::Path>,
+    ) -> anyhow::Result<std::path::PathBuf> {
+        let wasm_bytes = std::fs::read(&wasm_path).with_context(|| "failed to read input file")?;
+
+        let cache_key = blake3::hash(&wasm_bytes).to_hex().to_string();
+
+        let cache_file = cache_path.as_ref().join(cache_key).with_extension("wasm");
+
+        if !cache_file.exists() {
+            std::fs::write(
+                &cache_file,
+                self.engine.precompile_module(&wasm_bytes)?,
+            )?;
+        }
+
+        Ok(cache_file)
+    }
+
     pub async fn compile(
         &self,
         meta: ControllerModuleMetadata,
-        wasm_path: std::path::PathBuf,
+        wasm_path: impl AsRef<std::path::Path>,
         async_client_id: u64,
         async_request_sender: UnboundedSender<AsyncRequest>,
     ) -> anyhow::Result<ControllerModule> {
@@ -59,7 +81,8 @@ impl Environment {
         let mut store = Store::new(&self.engine, controller_ctx);
 
         // Compile our webassembly into an `Instance`.
-        let module = Module::from_file(&self.engine, wasm_path)?;
+        // let module = Module::from_file(&self.engine, wasm_path)?;
+        let module = unsafe { Module::deserialize_file(&self.engine, wasm_path)? };
 
         let instance = self.linker.instantiate_async(&mut store, &module).await?;
 

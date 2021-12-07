@@ -27,7 +27,7 @@ WORKDIR /workdir
 # build deps
 COPY --from=cargo /workdir .
 RUN cd poc \
-    && cargo build -p simple-pod-example --release --features client \
+    && cargo build -p ring-pod-example --release --features client \
     && mv target /tmp/target \
     && cd .. \
     && rm -rf *
@@ -37,15 +37,15 @@ COPY ./kube-rs ./kube-rs
 COPY ./poc ./poc
 RUN mv /tmp/target .
 WORKDIR /workdir/poc
-RUN cargo build -p simple-pod-example --release --features client
+RUN cargo build -p ring-pod-example --release --features client
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/cc:nonroot
 WORKDIR /
 
-COPY --from=builder /workdir/poc/target/release/simple-pod-example .
+COPY --from=builder /workdir/poc/target/release/ring-pod-example .
 
 USER 65532:65532
 
-ENTRYPOINT ["/simple-pod-example"]
+ENTRYPOINT ["/ring-pod-example"]

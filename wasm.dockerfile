@@ -30,7 +30,7 @@ WORKDIR /workdir
 COPY --from=cargo /workdir .
 RUN cd poc \
     && cargo build -p controller --release \
-    && cargo wasi build -p simple-pod-example --release --features client-wasi \
+    && cargo wasi build -p ring-pod-example --release --features client-wasi \
     && mv target /tmp/target \
     && cd .. \
     && rm -rf *
@@ -41,7 +41,7 @@ COPY ./poc ./poc
 RUN mv /tmp/target .
 WORKDIR /workdir/poc
 RUN cargo build -p controller --release
-RUN cargo wasi build -p simple-pod-example --release --features client-wasi
+RUN cargo wasi build -p ring-pod-example --release --features client-wasi
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
@@ -53,7 +53,7 @@ COPY --from=builder /workdir/poc/target/release/controller .
 COPY ./poc/temp/wasm/ ./wasm/
 
 # TODO: use build wasm image (instead of locally build one)
-COPY --from=builder /workdir/poc/target/wasm32-wasi/release/simple-pod-example.wasi.wasm ./wasm/temp.wasm
+COPY --from=builder /workdir/poc/target/wasm32-wasi/release/ring-pod-example.wasi.wasm ./wasm/temp.wasm
 
 USER 65532:65532
 

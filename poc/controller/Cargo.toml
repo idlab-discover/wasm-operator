@@ -32,3 +32,4 @@ k8s-openapi = { version = "0.13.1", default-features = false, features = ["v1_22
 url = "^2.2.2"
 env_logger = "^0.9.0"
 anyhow = "^1.0.44"
+blake3 = "^1.2.0"

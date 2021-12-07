@@ -2,6 +2,7 @@
 members = [
   "controller",
   "simple-pod-example",
+  "ring-pod-example",
   "kube-runtime-abi",
   "wasm-delay-queue",
 ]
@@ -13,5 +14,9 @@ lto = true
 opt-level = 3
 
 [profile.release.package.simple-pod-example]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"
+
+[profile.release.package.ring-pod-example]
 # Tell `rustc` to optimize for small code size.
 opt-level = "s"

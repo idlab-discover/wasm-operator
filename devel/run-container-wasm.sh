@@ -6,7 +6,7 @@ source "${SCRIPT_ROOT}/lib.sh"
 
 cd "${SCRIPT_ROOT}/../poc"
 
-WASM_MODULE="./target/wasm32-wasi/release/simple-pod-example.wasi.wasm"
+WASM_MODULE="./target/wasm32-wasi/release/ring-pod-example.wasi.wasm"
 
 mkdir temp || true
 mkdir temp/wasm || true

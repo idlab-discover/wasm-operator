@@ -25,6 +25,7 @@ pub async fn start<S>(
     receiver: Receiver<Command>,
     cluster_url: http::Uri,
     http_client: Arc<MutexAsync<S>>,
+    cache_path: impl AsRef<std::path::Path>,
 ) -> anyhow::Result<()>
 where
     S: Service<Request<Body>, Response = Response<Body>> + Send + 'static,
@@ -43,14 +44,23 @@ where
                 let cluster_url_clone = cluster_url.clone();
                 let http_client_clone = http_client.clone();
 
+                let name = metadata.name.clone();
+                
+                let start = Instant::now();
+
+                let serialized_wasm = environment_clone
+                    .cache_precompile(&wasm_path, cache_path.as_ref())
+                    .await
+                    .expect("precompiling failed");
+                debug!("precompilation: {} {:?}", name, start.elapsed());
+
                 let (async_request_tx, async_request_rx) = tokio::sync::mpsc::unbounded_channel();
 
                 let async_client_id = async_client_id_counter_clone.fetch_add(1, Ordering::SeqCst);
 
-                let name = metadata.name.clone();
                 let start = Instant::now();
                 let mut module = environment_clone
-                    .compile(metadata, wasm_path, async_client_id, async_request_tx)
+                    .compile(metadata, serialized_wasm, async_client_id, async_request_tx)
                     .await
                     .expect("Failed to compile module");
 
