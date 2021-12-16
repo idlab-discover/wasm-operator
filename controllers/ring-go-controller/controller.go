@@ -166,7 +166,7 @@ func (c *Controller) syncHandler(ctx context.Context, key string) error {
 	}
 
 	// Get the Test resource with this namespace/name
-	outTestResource, err := c.resourceLister.TestResources(c.outNamespace).Get(name)
+	outTestResource, err := c.resourceClientset.AmurantV1().TestResources(c.outNamespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
@@ -182,7 +182,7 @@ func (c *Controller) syncHandler(ctx context.Context, key string) error {
 		return err
 	}
 
-	if outTestResource.Spec.Nonce != inTestResource.Spec.Nonce {
+	if outTestResource.Spec.Nonce < inTestResource.Spec.Nonce {
 		klog.Infof("Updating resource")
 
 		outTestResource.Spec.Nonce = inTestResource.Spec.Nonce
