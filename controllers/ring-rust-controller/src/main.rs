@@ -62,6 +62,9 @@ async fn main() {
 }
 
 async fn main_async() {
+    let compile_nonce: &'static str = env!("COMPILE_NONCE");
+    println!("compile_nonce: {}", compile_nonce);
+
     let client = Client::try_default().await.expect("could not create kube client");
 
     let in_namespace = env::var("IN_NAMESPACE").unwrap_or("default".to_string());
@@ -93,15 +96,15 @@ async fn reconcile(in_test_resource: TestResource, ctx: Context<Data>) -> Result
 
     match out_test_resources.get(&name).await {
         Ok(mut existing) => {
-            if nonce != existing.spec.nonce {
-                println!("nonce != current nonce, resetting resource");
+            if nonce > existing.spec.nonce {
+                println!("nonce > current nonce, resetting resource");
                 existing.spec.nonce = nonce;
                 existing.spec.updated_at = Some(now_timestamp);
                 out_test_resources
                     .replace(&existing.name(), &PostParams::default(), &existing)
                     .await?;
             } else {
-                println!("nonce has not changed, doing nothing");
+                println!("nonce <= current nonce, doing nothing");
             }
         }
         Err(kube::Error::Api(ae)) if ae.code == 404 => {

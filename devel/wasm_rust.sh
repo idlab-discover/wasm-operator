@@ -13,28 +13,39 @@ check_tool kind
 
 cd "${SCRIPT_ROOT}/.."
 
-NR_CONTROLLERS=10
+NR_CONTROLLERS=100
 
 # Build the WASM binary & parent controller
 pushd pkg/controller
 cargo build --release
 popd
 
+CONTROLLER_NAMES=()
+
 pushd controllers/ring-rust-controller
-cargo wasi build --release --features client-wasi
+mkdir -p bin_wasm/
+COMPILE_NONCE="REPLACE_MEREPLACE_ME" cargo wasi build --release --features client-wasi
+cp ./target/wasm32-wasi/release/ring-pod-example.wasi.wasm ./bin_wasm/ring-rust-example.wasi.REPLACE_ME.wasm
+
+for (( i = 0; i < NR_CONTROLLERS; i++ )); do
+    CONTROLLER_NAME="controller${i}"
+    RANDOM_VALUE=$(echo $RANDOM | md5sum | head -c 20)
+    sed -e "s|REPLACE_MEREPLACE_ME|$RANDOM_VALUE|" ./bin_wasm/ring-rust-example.wasi.REPLACE_ME.wasm > ./bin_wasm/ring-rust-example.wasi.$CONTROLLER_NAME.wasm
+    CONTROLLER_NAMES+=($CONTROLLER_NAME)
+done
 popd
 
 kubectl apply -f ./tests/yaml/
 
-# Build the docker image
+echo "Build the docker image"
 pushd tests/wasm_rust
 rm -rf ./temp/ && mkdir -p ./temp/deploy/
 
 cp ../../pkg/controller/target/release/controller ./temp/
-cp ../../controllers/ring-rust-controller/target/wasm32-wasi/release/ring-pod-example.wasi.wasm ./temp/
+cp ../../controllers/ring-rust-controller/bin_wasm/*.wasm ./temp/
 generate_wasm_yaml_file $NR_CONTROLLERS "wasm-rust" > ./temp/wasm_config.yaml
 
-local_tag="local"
+local_tag="controller0"
 
 docker build -f Dockerfile -t "github.com/amurant/wasm_rust:${local_tag}" ./temp/
 
@@ -42,7 +53,7 @@ kind load docker-image --name "${KIND_CLUSTER_NAME}" "github.com/amurant/wasm_ru
 
 # Apply the yaml manifests
 generate_namespace_yaml_file $NR_CONTROLLERS "wasm-rust" > temp/deploy/01_namespaces.yaml
-generate_pod_yaml_file 1 "wasm-rust" "github.com/amurant/wasm_rust:${local_tag}" > temp/deploy/02_pod.yaml
+generate_pod_yaml_file 1 "wasm-rust" "github.com/amurant/wasm_rust:" > temp/deploy/02_pod.yaml
 cat << EOF > temp/deploy/03_resource.yaml
 apiVersion: amurant.io/v1
 kind: TestResource
@@ -53,6 +64,5 @@ spec:
     nonce: 0
 EOF
 
-# kubectl delete -f ./temp/deploy/
 kubectl apply -f ./temp/deploy/
 popd

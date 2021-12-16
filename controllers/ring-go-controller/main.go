@@ -14,6 +14,8 @@ import (
 	"github.com/amurant/ring-go-operator/pkg/signals"
 )
 
+var CompileNonce string
+
 var (
 	masterURL  string
 	kubeconfig string
@@ -32,6 +34,8 @@ func main() {
 
 	klog.InitFlags(nil)
 	flag.Parse()
+
+	klog.Infof("compile_nonce: %s", CompileNonce)
 
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
 	if err != nil {
