@@ -7,17 +7,26 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+console-subscriber = "0.1.2"
+
+lazy_static = "^1.4.0"
+futures-core = "^0.3.21"
+futures-task = "^0.3.21"
 log = "^0.4.14"
-wasmtime = { version = "^0.31.0", features = ["async"] }
-wasmtime-wasi = { version = "^0.31.0", features = ["tokio"] }
-kube = { path = "../kube-rs/kube", version = "0.63.1", features = ["native-tls"] }
-hyper = { version = "^0.14.13", features = ["client", "http2", "stream", "tcp"] }
-hyper-tls = "^0.5.0"
-tower = { version = "^0.4.6" }
+hyper-timeout = {version = "0.4.1"}
+tracing = { version = "0.1.29", features = ["log"] }
+wasmtime = { version = "^0.35.0", features = ["async", "memory-init-cow", "parallel-compilation"] }
+wasmtime-wasi = { version = "^0.35.0", features = ["tokio"] }
+kube = { path = "../kube-rs/kube", version = "0.71.0", features = ["rustls-tls"] }
+hyper = { version = "0.14.13", features = ["client", "http1", "http2", "stream", "tcp"] }
+hyper-rustls = "^0.23.0"
+openssl = { version = "0.10.36", features = ["vendored"] }
+tower = { version = "^0.4.11", features = ["limit", "timeout", "load-shed"] }
+tower-http = { version = "0.2.0", features = ["trace", "decompression-gzip"] }
 tower-service = { version = "^0.3.1" }
-tokio = { version = "^1.14.0", features = ["full"] }
-tokio-util = "0.6.8"
-tokio-stream = "^0.1.7"
+tokio = { version = "^1.16.1", features = ["full"] }
+tokio-util = { version = "^0.7.0", features = ["codec", "io"] }
+tokio-stream = "^0.1.8"
 http = "^0.2.5"
 http-body = "^0.4.4"
 serde = { version = "^1.0.130", features = ["derive"] }
@@ -28,8 +37,9 @@ http-serde = "^1.0.3"
 futures = "^0.3.17"
 bytes = "^1.1.0"
 dirs = "^4.0.0"
-k8s-openapi = { version = "0.13.1", default-features = false, features = ["v1_22"] }
+k8s-openapi = { version = "0.14.0", default-features = false, features = ["v1_23"] }
 url = "^2.2.2"
-env_logger = "^0.9.0"
 anyhow = "^1.0.44"
 blake3 = "^1.2.0"
+tracing-subscriber = "^0.3.3"
+pin-project = "^1.0.2"
