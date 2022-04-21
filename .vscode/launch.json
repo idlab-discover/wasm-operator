@@ -11,16 +11,11 @@
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=rust-host",
-                    "--package=rust-host"
+                    "--manifest-path=pkg/controller/Cargo.toml",
                 ],
-                "filter": {
-                    "name": "rust-host",
-                    "kind": "bin"
-                },
             },
             "args": [
-                "./wasm/",
+                "./tests/wasm_rust/temp/",
             ],
         }
     ]

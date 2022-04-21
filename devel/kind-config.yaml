@@ -1,0 +1,33 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+
+  extraMounts:
+  - hostPath: /tmp/kind-containerd
+    containerPath: /var/lib/containerd
+
+  # Ammend the kubeadm config to support a lot of pods
+  kubeadmConfigPatches:
+  - |
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    kind: KubeletConfiguration
+    metadata:
+      name: config
+    maxPods: 1100
+  - |
+    apiVersion: kubeadm.k8s.io/v1beta2
+    kind: ClusterConfiguration
+    metadata:
+      name: config
+    networking:
+      dnsDomain: cluster.local
+      podSubnet: 10.244.0.0/16
+      serviceSubnet: 10.96.0.0/12
+    controllerManager:
+      extraArgs:
+        node-cidr-mask-size: "20"    
+    etcd:
+      local:
+        extraArgs:
+          unsafe-no-fsync: "True"

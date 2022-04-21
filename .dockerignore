@@ -1,7 +1,5 @@
 target
 temp
-*.wasm
 .idea
 bin/
 __pycache__
-*.csv

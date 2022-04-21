@@ -12,7 +12,7 @@ generate_wasm_yaml_file() {
 
   cat << EOF
 name: ${NAME}${CONTROLLER_NR}
-wasm: ./wasm/ring-pod-example.wasi.wasm
+wasm: ./ring-rust-example.wasi.controller${CONTROLLER_NR}.wasm
 env:
 - name: RUST_LOG
   value: "debug"
@@ -44,7 +44,7 @@ spec:
   serviceAccountName: custom-controller
   containers:
   - name: controller
-    image: "${IMAGE}"
+    image: "${IMAGE}controller${CONTROLLER_NR}"
     env:
     - name: RUST_LOG
       value: "debug"
