@@ -5,9 +5,9 @@ WORKDIR /
 
 COPY ./controller .
 
-COPY ./ring-pod-example.wasi.wasm ./wasm/
-COPY ./wasm_config.yaml ./wasm/
+COPY ./*.wasm ./
+COPY ./wasm_config.yaml .
 
 USER 65532:65532
 
-ENTRYPOINT ["/controller", "./wasm/"]
+ENTRYPOINT ["/controller", "/"]

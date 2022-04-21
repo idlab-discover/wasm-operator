@@ -1,7 +1,0 @@
-name: simple-pod
-abi: rust_v1alpha1
-envs:
-  - ["RUST_LOG", "DEBUG"]
-  - ["IN_NAMESPACE", "default"]
-  - ["OUT_NAMESPACE", "default"]
-args: []
