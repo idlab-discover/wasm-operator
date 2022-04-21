@@ -1,27 +1,27 @@
-use hyper::client::connect::HttpConnector;
-use hyper_tls::HttpsConnector;
-use kube::client::ConfigExt;
-use kube::Config as KubeConfig;
-use log::info;
+use kube::Config;
 use std::env;
 use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::Mutex as MutexAsync;
-use tower::ServiceBuilder;
+use tracing::info;
 
 mod abi;
+mod kube_client;
 mod modules;
 mod runtime;
 
 use crate::modules::ControllerModuleMetadata;
 
+use std::alloc::System;
+
+#[global_allocator]
+static A: System = System;
+
 fn main() {
     std::env::set_var(
         "RUST_LOG",
-        "info,wasi_common=debug,controller=debug,cranelift=warn,kube=debug",
+        "warn,tower=warn,rustls=warn,wasmtime_cranelift=warn,cranelift=warn,regalloc=warn,hyper=warn",
     );
-    env_logger::init();
+
+    tracing_subscriber::fmt::init();
 
     // Bootstrap tokio runtime and kube-rs-async config/client
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -30,30 +30,14 @@ fn main() {
         .expect("Cannot create a tokio runtime");
 
     let kubeconfig = runtime
-        .block_on(KubeConfig::infer())
+        .block_on(Config::infer())
         .expect("Cannot infer the kubeconfig");
 
     let cluster_url = kubeconfig.cluster_url.clone();
 
-    let https = kubeconfig
-        .native_tls_https_connector()
-        .expect("could not load https kube config");
-
-    let hyper_client: hyper::Client<HttpsConnector<HttpConnector>, hyper::Body> =
-        hyper::Client::builder()
-            .pool_idle_timeout(Duration::from_secs(30))
-            .build(https);
-
-    let service = ServiceBuilder::new()
-        .layer(kubeconfig.base_uri_layer())
-        .option_layer(
-            kubeconfig
-                .auth_layer()
-                .expect("auth layer is not configurable from kube config"),
-        )
-        .service(hyper_client);
-
-    let arc_service = Arc::new(MutexAsync::new(service));
+    let service = runtime
+        .block_on(kube_client::create_client_service(kubeconfig))
+        .expect("could not setup kube client");
 
     let mut args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -66,6 +50,9 @@ fn main() {
     let cache_path = std::env::temp_dir().join("cache");
     std::fs::create_dir_all(&cache_path).unwrap();
 
+    let swap_path = std::env::temp_dir().join("swap");
+    std::fs::create_dir_all(&swap_path).unwrap();
+
     let mods = ControllerModuleMetadata::load_modules_from_dir(path)
         .expect("Cannot load the modules from the provided dir");
 
@@ -75,8 +62,9 @@ fn main() {
         tokio::spawn(runtime::start(
             runtime_command_receiver,
             cluster_url,
-            arc_service.clone(),
+            service,
             cache_path,
+            swap_path,
         ));
 
         tokio::spawn(async move {

@@ -41,6 +41,11 @@ impl<T> OpCall<T> {
     pub fn ready(value: T) -> Self {
         Self(MaybeDone::Done(value))
     }
+
+    #[allow(dead_code)]
+    pub fn gone() -> Self {
+        Self(MaybeDone::Gone)
+    }
 }
 
 impl<T> Future for OpCall<T> {

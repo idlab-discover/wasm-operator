@@ -49,7 +49,6 @@ pub(crate) struct HttpResponseMeta {
     pub(crate) headers: http::HeaderMap,
 }
 
-#[allow(dead_code)]
 impl HttpResponseMeta {
     pub(crate) fn into<T>(self, body: T) -> http::Response<T> {
         let mut builder = http::response::Builder::new().status(self.status_code);

@@ -27,7 +27,9 @@ impl ControllerModuleMetadata {
             .split("\n---")
             .filter_map(|yaml_doc| match serde_yaml::from_str(yaml_doc) {
                 Err(err) if err.to_string().contains("EOF while parsing a value") => None,
-                result => Some(result.map_err(|e| anyhow::anyhow!("Failed to parse module metadata: {}", e))),
+                result => Some(
+                    result.map_err(|e| anyhow::anyhow!("Failed to parse module metadata: {}", e)),
+                ),
             })
             .collect()
     }

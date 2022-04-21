@@ -10,5 +10,5 @@ extern "C" {
 
 pub fn register_delay(del: Duration) -> impl Future<Output = ()> + Send {
     let millis = del.as_millis() as u64;
-    super::start_future(unsafe { delay(millis) }).map(|_v| ())
+    super::start_async(unsafe { delay(millis) }).map(|_v| ())
 }

@@ -2,16 +2,10 @@ use core::fmt::Debug;
 use std::time::Duration;
 
 #[derive(PartialEq, Eq, Hash, Debug)]
-pub enum AsyncType {
-    Future, // will cause client to stop listening
-    Stream, // client will continue listening
-}
-
-#[derive(PartialEq, Eq, Hash, Debug)]
 pub struct AsyncResult {
     pub async_request_id: u64,
-    pub async_type: AsyncType,
-    pub value: Option<Vec<u8>>,
+    pub value: Option<bytes::Bytes>,
+    pub finished: bool,
 }
 
 #[derive(Debug)]
