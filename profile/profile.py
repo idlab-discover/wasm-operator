@@ -170,9 +170,9 @@ def tuple_half(t):
 class Modulator:
     def __init__(self) -> None:
         # config
-        self.allowed_delta_level1 = 1_000
-        self.allowed_delta_level2 = 10_000
-        self.allowed_delta_level3 = 2000_000
+        self.allowed_delta_level1 = 100     # 0,1 ms
+        self.allowed_delta_level2 = 10_000  # 10 ms
+        self.allowed_delta_level3 = 100_000 # 100 ms
         self.output_limits = (1, get_total_memory())
         
         # runtime vars
@@ -196,9 +196,12 @@ class Modulator:
     def calculate_memory_max(self, results, nr_operators):
         mem_usage, max_usage, delta, nr_pods = self.update_runtime(results)
 
-        if (delta > self.allowed_delta_level3) or (self.current_limit is None):
+        if self.current_limit is None:
             self.counter = 0
-            self.current_limit = max(1.5 * nr_pods * max_usage, nr_operators * 5*1024*1024)
+            self.current_limit = max(1.4 * nr_pods * max_usage, nr_operators * 5*1024*1024)
+        elif delta > self.allowed_delta_level3:
+            self.counter = 0
+            self.current_limit = 1.5 * nr_pods * max_usage
         elif delta > self.allowed_delta_level2:
             self.counter = 0
             self.current_limit = 1.2 * nr_pods * max_usage
