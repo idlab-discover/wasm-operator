@@ -11,4 +11,9 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
+  name: native-rust-comb
+---
+apiVersion: v1
+kind: Namespace
+metadata:
   name: wasm-rust

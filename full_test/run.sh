@@ -65,8 +65,18 @@ do
 done
 '
 
-for (( j = 10; j <= 100; j+=10 ))
+for (( j = 10; j <= 100; j+=20 ))
 do
+    if [ ! -f ./test_results/out_comb_$j.csv ]; then
+        ./devel/create_cluster.sh
+        ./devel/setup_native_rust_combined.sh $j
+        sudo ./profile/profile.py comb $j ./test_results/out_comb_$j.csv &
+        profilePID=$!
+        ./devel/test.sh $j 200 "native-rust-comb" ./test_results/out_comb_${j}_time.csv
+        sleep 240
+        sudo pkill -P $profilePID
+    fi
+
     if [ ! -f ./test_results/out_golang_$j.csv ]; then
         ./devel/create_cluster.sh
         ./devel/setup_native_golang.sh $j

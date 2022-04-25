@@ -26,6 +26,12 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: custom-controller
+  namespace: native-rust-comb
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: custom-controller
   namespace: wasm-rust
 ---
 kind: ClusterRoleBinding
@@ -39,6 +45,9 @@ subjects:
 - kind: ServiceAccount
   name: custom-controller
   namespace: native-rust
+- kind: ServiceAccount
+  name: custom-controller
+  namespace: native-rust-comb
 - kind: ServiceAccount
   name: custom-controller
   namespace: wasm-rust
