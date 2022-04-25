@@ -12,6 +12,8 @@ trap cleanup_fake_gopath EXIT
 mkdir -p "${FAKE_GO_PATH}/github.com/amurant"
 ln -sf "${SCRIPT_ROOT}/.." "${FAKE_GO_PATH}/github.com/amurant/ring-go-operator"
 
+GO111MODULE=off go get k8s.io/code-generator
+
 GO_PATH=$(go env GOPATH)
 CODEGEN_PKG="${GO_PATH}/src/k8s.io/code-generator"
 

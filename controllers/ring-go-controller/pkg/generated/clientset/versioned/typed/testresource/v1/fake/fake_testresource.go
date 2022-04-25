@@ -89,7 +89,7 @@ func (c *FakeTestResources) Update(ctx context.Context, testResource *testresour
 // Delete takes name of the testResource and deletes it. Returns an error if one occurs.
 func (c *FakeTestResources) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(testresourcesResource, c.ns, name), &testresourcev1.TestResource{})
+		Invokes(testing.NewDeleteActionWithOptions(testresourcesResource, c.ns, name, opts), &testresourcev1.TestResource{})
 
 	return err
 }

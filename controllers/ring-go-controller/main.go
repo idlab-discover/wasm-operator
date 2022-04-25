@@ -39,12 +39,16 @@ func main() {
 
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
 	if err != nil {
-		klog.Fatalf("Error building kubeconfig: %s", err.Error())
+		klog.Errorf("Error building kubeconfig: %s", err.Error())
+		signals.SetExitCode(err)
+		return
 	}
 
 	resourceClientset, err := clientset.NewForConfig(cfg)
 	if err != nil {
-		klog.Fatalf("Error building example clientset: %s", err.Error())
+		klog.Errorf("Error building example clientset: %s", err.Error())
+		signals.SetExitCode(err)
+		return
 	}
 
 	inNamespace := getEnv("IN_NAMESPACE", "default")
@@ -63,7 +67,9 @@ func main() {
 	resourceInformerFactory.Start(ctx.Done())
 
 	if err = controller.Run(ctx); err != nil {
-		klog.Fatalf("Error running controller: %s", err.Error())
+		klog.Errorf("Error running controller: %s", err.Error())
+		signals.SetExitCode(err)
+		return
 	}
 }
 
