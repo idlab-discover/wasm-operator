@@ -9,7 +9,7 @@
 |   +-- 📂ring-rust-controller          # Rust operator (container-based and WASM-based)
 |   :
 +-- 📂devel                             # Tools for building & deploying
-+-- 📂full-test                         # Script for running e2e test & benchmark
++-- 📂full_test                         # Script for running e2e test & benchmark
 +-- 📂pkg
 |   +-- 📂controller                    # Parent controller
 |   +-- 📂kube-rs                       # Modified kube-rs library
@@ -18,4 +18,10 @@
 +-- 📂profile                           # Cgroup v2 memory usage measuring
 +-- 📂test                              # Deployment files for tests
 :
+```
+
+## Run all e2e tests and benchmarks
+
+```console
+> ./full_test/run.sh
 ```
