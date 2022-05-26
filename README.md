@@ -1,15 +1,21 @@
-# Master thesis - Tim Ramlot
+# Master thesis project - Optimising memory usage of Kubernetes operators using WASM
 
-started from https://github.com/slinkydeveloper/extending-kubernetes-api-in-process-poc
+:rocket: Builds upon [this proof of concept (PoC)](https://github.com/slinkydeveloper/extending-kubernetes-api-in-process-poc)
 
-https://github.com/google/bloaty
-https://github.com/WebAssembly/binaryen/releases/tag/version_105
-
-cargo install wizer --all-features
-
-wizer input.wasm -o initialized.wasm
-
-cargo install twiggy
-
-cargo install cargo-wasi
-
+```text
++-- 📂controllers                       # All operators used for testing
+|   +-- 📂comb-rust-controller          # Rust combined operator (no isolation)
+|   +-- 📂ring-go-controller            # Go operator (container-based)
+|   +-- 📂ring-rust-controller          # Rust operator (container-based and WASM-based)
+|   :
++-- 📂devel                             # Tools for building & deploying
++-- 📂full-test                         # Script for running e2e test & benchmark
++-- 📂pkg
+|   +-- 📂controller                    # Parent controller
+|   +-- 📂kube-rs                       # Modified kube-rs library
+|   +-- 📂kube-runtime-abi              # ABI for making Kubernetes API requests from within child operator
+|   :
++-- 📂profile                           # Cgroup v2 memory usage measuring
++-- 📂test                              # Deployment files for tests
+:
+```
