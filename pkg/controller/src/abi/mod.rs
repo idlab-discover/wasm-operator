@@ -24,8 +24,7 @@ where
 {
     instance
         .get_typed_func::<(), (), _>(&mut store, "_start")?
-        .call_async(&mut store, ())
-        .await?;
+        .call(&mut store, ())?;
 
     Ok(())
 }
@@ -41,8 +40,7 @@ where
 {
     instance
         .get_typed_func::<u32, u32, _>(&mut store, "allocate")?
-        .call_async(&mut store, allocation_size)
-        .await
+        .call(&mut store, allocation_size)
 }
 
 pub(crate) async fn wakeup<S>(
@@ -75,7 +73,7 @@ where
     let wakeup_fn = instance.get_typed_func::<(u64, u32, u32, u32), (), _>(&mut store, "wakeup")?;
 
     wakeup_fn
-        .call_async(
+        .call(
             &mut store,
             (
                 async_request_id,
@@ -83,8 +81,7 @@ where
                 memory_location_ptr,
                 memory_location_size as u32,
             ),
-        )
-        .await?;
+        )?;
 
     Ok(())
 }

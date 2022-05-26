@@ -12,7 +12,6 @@ use tokio::sync::Semaphore as AsyncSemaphore;
 use tracing::Instrument;
 use wasmtime::{Instance, Module, Store};
 
-const RELOAD_MODULE: bool = false;
 const WASM_PAGE_SIZE: u64 = 0x10000;
 
 pub struct Snapshot {
@@ -23,11 +22,10 @@ pub struct Snapshot {
 enum MaybeInst {
     Locked,
     NotInst(ControllerCtx),
-    UnsInst(ControllerCtx, Option<Module>, Snapshot),
+    UnsInst(ControllerCtx, Snapshot),
     GotInst(
         Store<ControllerCtx>,
         AsyncOwnedSemaphorePermit,
-        Option<Module>,
         Instance,
     ),
 }
@@ -42,14 +40,14 @@ impl MaybeInst {
 
     pub(crate) fn take_uns(&mut self) -> Self {
         match self {
-            Self::UnsInst(_, _, _) => self.take(),
+            Self::UnsInst(_, _) => self.take(),
             _ => Self::Locked,
         }
     }
 
     pub(crate) fn take_got(&mut self) -> Self {
         match self {
-            Self::GotInst(_, _, _, _) => self.take(),
+            Self::GotInst(_, _, _) => self.take(),
             _ => Self::Locked,
         }
     }
@@ -69,8 +67,8 @@ impl fmt::Debug for MaybeInst {
         match self {
             Self::Locked => f.debug_struct("Locked"),
             Self::NotInst(_) => f.debug_struct("NotInst(ctx)"),
-            Self::UnsInst(_, _, _) => f.debug_struct("UnsInst(ctx, snapshot)"),
-            Self::GotInst(_, _, _, _) => f.debug_struct("GotInst(store, permit, instance)"),
+            Self::UnsInst(_, _) => f.debug_struct("UnsInst(ctx, snapshot)"),
+            Self::GotInst(_, _, _) => f.debug_struct("GotInst(store, permit, instance)"),
         }
         .finish()
     }
@@ -141,7 +139,7 @@ impl WasmRuntime {
         let fut = async move {
             let mut lock = arc.lock().await;
 
-            if let MaybeInst::GotInst(mut store, permit, module, instance) = lock.take_got() {
+            if let MaybeInst::GotInst(mut store, permit, instance) = lock.take_got() {
                 let mem = instance.get_memory(&mut store, "memory").unwrap();
                 tokio::fs::write(&swap_path, mem.data(&mut store)).await?;
 
@@ -171,7 +169,7 @@ impl WasmRuntime {
                     memory_min: mem.data_size(&mut store),
                 };
 
-                lock.set(MaybeInst::UnsInst(store.into_data(), module, snapshot));
+                lock.set(MaybeInst::UnsInst(store.into_data(), snapshot));
 
                 drop(permit);
             }
@@ -198,22 +196,24 @@ impl WasmRuntime {
                 let permit = async_active_client_counter_clone.acquire_owned().await?;
 
                 let mut store = Store::new(&environment.engine, context);
+
                 let module = unsafe { Module::deserialize_file(&environment.engine, &wasm_path)? };
 
                 let pre_instance = environment.linker.instantiate_pre(&mut store, &module)?;
 
-                let instance = pre_instance.instantiate_async(&mut store).await?;
+                drop(module);
+
+                let instance = pre_instance.instantiate(&mut store)?;
 
                 lock.set(MaybeInst::GotInst(
                     store,
                     permit,
-                    if RELOAD_MODULE { None } else { Some(module) },
                     instance,
                 ));
             }
 
             let (store, instance) = match &mut *lock {
-                MaybeInst::GotInst(store, _, _, instance) => (store, instance),
+                MaybeInst::GotInst(store, _, instance) => (store, instance),
                 _ => unreachable!(),
             };
 
@@ -245,20 +245,19 @@ impl WasmRuntime {
         let fut = async move {
             let mut lock = arc.lock().await;
 
-            if let MaybeInst::UnsInst(context, module, snapshot) = lock.take_uns() {
+            if let MaybeInst::UnsInst(context, snapshot) = lock.take_uns() {
                 let permit = async_active_client_counter_clone.acquire_owned().await?;
 
-                let module = match module {
-                    Some(module) => module,
-                    None => unsafe { Module::deserialize_file(&environment.engine, &wasm_path)? },
-                };
+                let module = unsafe { Module::deserialize_file(&environment.engine, &wasm_path)? };
 
                 let mut store = Store::new(&environment.engine, context);
                 let pre_instance = environment.linker.instantiate_pre(&mut store, &module)?;
+                
+                drop(module);
 
                 use tokio::fs::File;
                 use tokio::io::AsyncReadExt;
-                let instance = pre_instance.instantiate_async(&mut store).await?;
+                let instance = pre_instance.instantiate(&mut store)?;
                 let mem = instance.get_memory(&mut store, "memory").unwrap();
 
                 let mut f = File::open(&swap_path).await?;
@@ -272,7 +271,7 @@ impl WasmRuntime {
                         n_pages += 1;
                     }
 
-                    mem.grow_async(&mut store, n_pages).await?;
+                    mem.grow(&mut store, n_pages)?;
                 }
 
                 let read = f.read_exact(mem.data_mut(&mut store)).await?;
@@ -288,13 +287,12 @@ impl WasmRuntime {
                 lock.set(MaybeInst::GotInst(
                     store,
                     permit,
-                    if RELOAD_MODULE { None } else { Some(module) },
                     instance,
                 ));
             }
 
             let (store, instance) = match &mut *lock {
-                MaybeInst::GotInst(store, _, _, instance) => (store, instance),
+                MaybeInst::GotInst(store, _, instance) => (store, instance),
                 _ => unreachable!(),
             };
 

@@ -10,8 +10,8 @@ use anyhow::{Context, Result};
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::Semaphore as AsyncSemaphore;
-use wasmtime::{Config, Engine, InstanceAllocationStrategy, Linker};
-use wasmtime_wasi::tokio::WasiCtxBuilder;
+use wasmtime::{Config, Engine, InstanceAllocationStrategy, Linker, OptLevel};
+use wasmtime_wasi::WasiCtxBuilder;
 
 #[derive(Clone)]
 pub struct Environment {
@@ -22,22 +22,24 @@ pub struct Environment {
 impl Environment {
     pub fn new() -> Result<Self, Error> {
         let mut config = Config::new();
-        config.async_support(true);
-        config.generate_address_map(true);
+        config.generate_address_map(false);
         config.memory_init_cow(true);
+        config.cranelift_opt_level(OptLevel::SpeedAndSize);
 
-        config.allocation_strategy(InstanceAllocationStrategy::Pooling {
-            strategy: wasmtime::PoolingAllocationStrategy::ReuseAffinity,
-            instance_limits: wasmtime::InstanceLimits {
-                count: *super::POOL_SIZE,
-                ..wasmtime::InstanceLimits::default()
-            },
-        });
+        if *super::COMPILE_WITH_UNINSTANCIATE {
+            config.allocation_strategy(InstanceAllocationStrategy::Pooling {
+                strategy: wasmtime::PoolingAllocationStrategy::ReuseAffinity,
+                instance_limits: wasmtime::InstanceLimits {
+                    count: *super::POOL_SIZE,
+                    ..wasmtime::InstanceLimits::default()
+                },
+            });
+        }
 
         let engine = Engine::new(&config)?;
 
         let mut linker = Linker::new(&engine);
-        wasmtime_wasi::tokio::add_to_linker(&mut linker, |cx: &mut ControllerCtx| {
+        wasmtime_wasi::add_to_linker(&mut linker, |cx: &mut ControllerCtx| {
             &mut cx.wasi_ctx
         })?;
 
