@@ -15,11 +15,13 @@ name: ${NAME}${CONTROLLER_NR}
 wasm: ./ring-rust-example.wasi.controller${CONTROLLER_NR}.wasm
 env:
 - name: RUST_LOG
-  value: "debug"
+  value: "info"
 - name: IN_NAMESPACE
   value: "${NAME}${CONTROLLER_NR}"
 - name: OUT_NAMESPACE
   value: "${NAME}$(((CONTROLLER_NR+1) % NR_CONTROLLERS))"
+- name: HEAP_MEM_SIZE
+  value: "$HEAP_MEM_SIZE"
 ---
 EOF
 
@@ -47,15 +49,43 @@ spec:
     image: "${IMAGE}controller${CONTROLLER_NR}"
     env:
     - name: RUST_LOG
-      value: "debug"
+      value: "info"
     - name: IN_NAMESPACE
       value: "${NAME}${CONTROLLER_NR}"
     - name: OUT_NAMESPACE
       value: "${NAME}$(((CONTROLLER_NR+1) % NR_CONTROLLERS))"
+    - name: HEAP_MEM_SIZE
+      value: "$HEAP_MEM_SIZE"
 ---
 EOF
 
   done
+}
+
+
+generate_pod_yaml_file_combined() {
+  NR_CONTROLLERS=$1
+  NAME=$2
+  IMAGE=$3
+
+  cat << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: controller
+  namespace: ${NAME}
+spec:
+  serviceAccountName: custom-controller
+  containers:
+  - name: controller
+    image: "${IMAGE}controller"
+    env:
+    - name: RUST_LOG
+      value: "info"
+    - name: NR_OPERATORS
+      value: "${NR_CONTROLLERS}"
+---
+EOF
 }
 
 generate_namespace_yaml_file() {

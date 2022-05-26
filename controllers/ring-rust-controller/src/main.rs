@@ -16,14 +16,10 @@ use std::env;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::debug;
+use tracing::info;
 
 #[cfg(target_arch = "wasm32")]
 use {futures::task::SpawnExt, std::ops::Deref};
-
-const HEAP_MEM_SIZE: usize = 0 * 1024 * 1024; // 0MiB
-                                              // const HEAP_MEM_SIZE: usize = 1 * 1024 * 1024; // 1MiB
-                                              // const HEAP_MEM_SIZE: usize = 2 * 1024 * 1024; // 2MiB
-                                              // const HEAP_MEM_SIZE: usize = 4 * 1024 * 1024; // 4MiB
 
 #[derive(Debug, Snafu)]
 enum Error {
@@ -79,7 +75,7 @@ async fn main_async() {
     tracing_subscriber::fmt::init();
 
     let compile_nonce: &'static str = env!("COMPILE_NONCE");
-    debug!("compile_nonce: {}", compile_nonce);
+    info!("compile_nonce: {}", compile_nonce);
 
     let client = Client::try_default()
         .await
@@ -88,10 +84,18 @@ async fn main_async() {
     let in_namespace = env::var("IN_NAMESPACE").unwrap_or("default".to_string());
     let out_namespace = env::var("OUT_NAMESPACE").unwrap_or("default".to_string());
 
+    // const heap_mem_size: usize = 0 * 1024 * 1024; // 0MiB
+    // const heap_mem_size: usize = 1 * 1024 * 1024; // 1MiB
+    // const heap_mem_size: usize = 2 * 1024 * 1024; // 2MiB
+    // const heap_mem_size: usize = 4 * 1024 * 1024; // 4MiB
+    
+    let heap_mem_size = env::var("HEAP_MEM_SIZE").unwrap_or("0".to_string());
+    let heap_mem_size = heap_mem_size.parse::<usize>().unwrap();
+
     let in_resources: Api<TestResource> = Api::namespaced(client.clone(), in_namespace.as_str());
 
-    let mut huge_mem_alloc = Vec::with_capacity(HEAP_MEM_SIZE);
-    for i in 0..HEAP_MEM_SIZE {
+    let mut huge_mem_alloc = Vec::with_capacity(heap_mem_size);
+    for i in 0..heap_mem_size {
         huge_mem_alloc.push((i + 9 % 256) as u8);
     }
     let huge_mem_alloc = Arc::new(huge_mem_alloc);

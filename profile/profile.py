@@ -86,14 +86,17 @@ def remove_prefix(text, prefix):
         return text[len(prefix):]
     return text
 
-def get_containers_in_pod(path):
-    return [
-        os.path.join(path, d)
-        for d in os.listdir(path)
-        if Path(os.path.join(path, d)).is_dir()
-    ]
-
 def parse_shims(shim_processes):
+    for shim_process in shim_processes:
+        if ("cgroup_dir" in shim_process) and ("container_id" in shim_process):
+            continue
+
+        cgroup_dir = Locations.PROC_CGROUP(shim_process["pid"]).read()
+        cgroup_dir = [remove_prefix(x, "0::") for x in cgroup_dir.split('\n') if x.startswith("0::")][0].strip()
+        cgroup_dir = Locations.CGROUP_DIR(cgroup_dir)
+        
+        shim_process["cgroup_dir"] = cgroup_dir
+
     return {x["cmdline"].split(' ')[4]: x for x in shim_processes}
 
 def parse_containers(processes):
@@ -106,7 +109,7 @@ def parse_containers(processes):
         cgroup_dir = Locations.CGROUP_DIR(cgroup_dir)
         
         process["cgroup_dir"] = cgroup_dir
-        process["container_id"] = os.path.basename(cgroup_dir)
+        process["container_id"] = os.path.basename(cgroup_dir).removeprefix("cri-containerd-").removesuffix(".scope")
         process["pod_id"] = os.path.basename(os.path.dirname(cgroup_dir))
 
     return {x["pod_id"]: x for x in processes}
@@ -118,7 +121,7 @@ def process_cgroup_pressure(cgroup_dir):
     pressure = Locations.MEM_PRESSURE(cgroup_dir).read().split('\n')
     return int(pressure[1].split()[4].split('=')[1]) # accumulated number of microseconds the whole process was delayed
 
-def total_cgroupv2_usage(processes, pause_processes, shims_processes):
+def total_cgroupv2_usage(processes, pause_processes, shim_processes):
     main_cgroup_mem_current = 0
     pause_cgroup_mem_current = 0
     mem_pressure_full_total = 0
@@ -127,7 +130,7 @@ def total_cgroupv2_usage(processes, pause_processes, shims_processes):
 
     for pod_id, process in processes.items():
         pause_process = pause_processes[pod_id]
-        shim_process = shims_processes[pause_process["container_id"]]
+        shim_process = shim_processes[pause_process["container_id"]]
 
         cgroup_mem = process_cgroup_mem_current(process["cgroup_dir"])
         main_cgroup_mem_current += cgroup_mem
@@ -137,13 +140,18 @@ def total_cgroupv2_usage(processes, pause_processes, shims_processes):
         pod_cgroup_dir = Path(process["cgroup_dir"]).parent
 
         mem_pressure_full_total += process_cgroup_pressure(pod_cgroup_dir)
-    
+
+    # all containerd-releated processes run in the same cgroup (so only account once)
+    containerd_mem = process_cgroup_mem_current(shim_process["cgroup_dir"])
+    containerd_pressure = process_cgroup_pressure(shim_process["cgroup_dir"])
+
     return {
-        "nr_pods": len(processes),
-        "main_cgroup_mem_current": main_cgroup_mem_current,
-        "main_cgroup_mem_max": main_cgroup_mem_max,
-        "pause_cgroup_mem_current": pause_cgroup_mem_current,
-        "mem_pressure_full_total": mem_pressure_full_total,
+        "app_mem": main_cgroup_mem_current,
+        "app_max": main_cgroup_mem_max,
+        "app_presssure": mem_pressure_full_total,
+        "pause_mem": pause_cgroup_mem_current,
+        "containerd_mem": containerd_mem,
+        "containerd_pressure": containerd_pressure,
     }
 
 def update_memory_pressure(processes, max):
@@ -156,82 +164,130 @@ def get_total_memory():
     total_memory = [x.removeprefix("MemTotal:").removesuffix("kB").strip() for x in meminfo if x.startswith("MemTotal:")][0]
     return int(total_memory) * 1000
 
-
-def tuple_add(t):
-    v_min, v_max = t
-    diff = (v_max - v_min)
-    return v_min + diff, v_max + diff
-
-def tuple_half(t):
-    v_min, v_max = t
-    half = (v_max - v_min) // 2
-    return v_min, v_max - half
-
 class Modulator:
     def __init__(self) -> None:
         # config
-        self.allowed_delta_level1 = 100     # 0,1 ms
-        self.allowed_delta_level2 = 10_000  # 10 ms
-        self.allowed_delta_level3 = 100_000 # 100 ms
+        self.warmup_period = 20
+        self.allowed_delta_level1 = 400
+        self.allowed_delta_level2 = 10_000
+        self.allowed_delta_level3 = 2000_000
         self.output_limits = (1, get_total_memory())
+
+        # last metrics
+        self.app_processes = []
+        self.pause_processes = []
+        self.shim_processes = []
         
         # runtime vars
+        self.name = None
         self.counter = 0
-        self.total_microseconds = None
-        self.current_limit = None
 
-    def update_runtime(self, results):
-        total_microseconds = results["mem_pressure_full_total"]
-        mem_usage = results["main_cgroup_mem_current"] + results["pause_cgroup_mem_current"]
-        max_usage = results["main_cgroup_mem_max"]
-        nr_pods = max(1, results["nr_pods"])
+        self.pause_mem = 0
+        self.app_mem = 0
+        self.app_max = 0
+        self.app_delta = None
+        self.app_total_microseconds = None
+        self.app_limit = None
 
-        if self.total_microseconds is None:
-            self.total_microseconds = total_microseconds
+        self.containerd_mem = 0
+        self.containerd_delta = None
+        self.containerd_total_microseconds = None
+        self.containerd_limit = None
 
-        delta = total_microseconds - self.total_microseconds
-        self.total_microseconds = total_microseconds
-        return mem_usage, max_usage, delta, nr_pods
+    def update_runtime(self, name, app_processes, pause_processes, shim_processes):
+        self.name = name
+        self.app_processes, self.pause_processes, self.shim_processes = app_processes, pause_processes, shim_processes
+        results = total_cgroupv2_usage(self.app_processes, self.pause_processes, self.shim_processes)
 
-    def calculate_memory_max(self, results, nr_operators):
-        mem_usage, max_usage, delta, nr_pods = self.update_runtime(results)
+        self.pause_mem = results["pause_mem"]
+        self.app_mem = results["app_mem"]
+        self.app_max = results["app_max"]
+        app_total_microseconds = results["app_presssure"]
+        self.app_delta = 0 if (self.app_total_microseconds is None) else (app_total_microseconds - self.app_total_microseconds)
+        self.app_total_microseconds = app_total_microseconds
+        
+        self.containerd_mem = results["containerd_mem"]
+        containerd_total_microseconds = results["containerd_pressure"]
+        self.containerd_delta = 0 if (self.containerd_total_microseconds is None) else (containerd_total_microseconds - self.containerd_total_microseconds)
+        self.containerd_total_microseconds = containerd_total_microseconds
 
-        if self.current_limit is None:
-            self.counter = 0
-            self.current_limit = max(1.4 * nr_pods * max_usage, nr_operators * 5*1024*1024)
-        elif delta > self.allowed_delta_level3:
-            self.counter = 0
-            self.current_limit = 1.5 * nr_pods * max_usage
-        elif delta > self.allowed_delta_level2:
-            self.counter = 0
-            self.current_limit = 1.2 * nr_pods * max_usage
-        elif delta > self.allowed_delta_level1:
-            self.counter = max(self.counter + 1, 0)
-            self.current_limit *= 1.02
+    def delta_calculate(self, delta, limit, mem_current):
+        if (limit is None) or (self.counter < self.warmup_period):
+            limit = float("inf")
+
+        elif self.counter == self.warmup_period + 1:
+            limit = 1.2 * mem_current # shock into full reclaim mode
+        
         else:
-            self.counter = min(self.counter - 1, 0)
-            self.current_limit /= 1.02
+            if delta > self.allowed_delta_level1:
+                if self.name == "golang":
+                    limit *= 1.02
+                else:
+                    limit *= 1.02
 
-        self.current_limit = max(self.output_limits[0], self.current_limit)
-        self.current_limit = min(self.output_limits[1], self.current_limit)
+                if delta > self.allowed_delta_level3:
+                    limit = max(limit, 1.3 * mem_current)
+                elif delta > self.allowed_delta_level2:
+                    limit = max(limit, 1.2 * mem_current)
+            else:
+                if self.name == "golang":
+                    limit /= 1.02
+                else:
+                    limit /= 1.03
+        
+        return limit
+    
+    def clean_limit(self, limit):
+        limit = max(self.output_limits[0], limit)
+        limit = min(self.output_limits[1], limit)
+        return limit
 
-        mem_max_per_pod = int(self.current_limit / nr_pods) + 1
+    def update_max(self):
+        nr_pods = max(1, len(self.app_processes))
 
-        print(f'delta: {delta / 1000:.3f}ms\t mem: {h(mem_usage)}\t max: {h(self.current_limit)}\t max_per_pod: {h(mem_max_per_pod)}\t counter: {self.counter}')
+        if (self.app_limit is None) or (self.counter < self.warmup_period):
+            if self.app_max < 1024: # wait for usage to become more than 1KiB
+                self.counter = 0
+        
+        # update app limit
+        self.app_limit = self.delta_calculate(self.app_delta, self.app_limit, nr_pods * self.app_max)
 
-        return mem_usage, self.current_limit, mem_max_per_pod
+        # update containerd limit
+        self.containerd_limit = self.delta_calculate(self.containerd_delta, self.containerd_limit, self.containerd_mem)
+
+        self.counter += 1
+
+        self.app_limit = self.clean_limit(self.app_limit)
+        mem_max_per_pod = int(self.app_limit / nr_pods) + 1
+        update_memory_pressure(self.app_processes, mem_max_per_pod)
+
+        self.containerd_limit = int(self.clean_limit(self.containerd_limit)) + 1
+        update_memory_pressure({k: v for k,v in [next(iter(self.shim_processes.items()))]}, self.containerd_limit)
+
+        print(
+            f'app_delta: {self.app_delta / 1000:.3f}ms\t' +
+            f'app_mem: {h(self.app_mem)}\t' +
+            f'app_max: {h(self.app_limit)}\t' +
+            f'app_max_per_pod: {h(mem_max_per_pod)}\t' +
+            f'containerd_delta: {self.containerd_delta / 1000:.3f}ms\t' +
+            f'containerd_mem: {h(self.containerd_mem)}\t' +
+            f'containerd_max: {h(self.containerd_limit)}\t' +
+            f'pause_mem: {h(self.pause_mem)}\t' +
+            f'counter: {self.counter}'
+        )
+
+        return self.app_mem, self.app_limit, self.containerd_mem, self.containerd_limit, self.pause_mem
 
 if __name__ == "__main__":
     import sys
-    type, nr_operators, output_file = sys.argv[1], sys.argv[2], sys.argv[3]
-    nr_operators = int(nr_operators)
+    type, output_file = sys.argv[1], sys.argv[2]
 
     rust_pids = []
     go_pids = []
     wasm_pids = []
 
     with open(output_file, 'w') as file_object:
-        file_object.write('time;mem_usage;mem_max;mem_max_per_pod\n')
+        file_object.write('time;app_mem;app_limit;containerd_mem;containerd_limit;pause_mem\n')
 
     process_list = ProcessList()
     modulator = Modulator()
@@ -242,24 +298,38 @@ if __name__ == "__main__":
         shim_processes = parse_shims(process_list.find_in("/usr/local/bin/containerd-shim-runc-v2"))
         pause_processes = parse_containers(process_list.find("/pause"))
 
-        mem_usage, mem_max, mem_max_per_pod = None, None, None
         if type == "rust":
-            rust_processes = parse_containers(process_list.find("/ring-rust-controller"))
-            native_rust = total_cgroupv2_usage(rust_processes, pause_processes, shim_processes)
-            mem_usage, mem_max, mem_max_per_pod = modulator.calculate_memory_max(native_rust, nr_operators)
-            update_memory_pressure(rust_processes, mem_max_per_pod)
+            modulator.update_runtime(
+                "rust",
+                parse_containers(process_list.find("/ring-rust-controller")),
+                pause_processes,
+                shim_processes,
+            )
+        elif type == "comb":
+            modulator.update_runtime(
+                "comb",
+                parse_containers(process_list.find("/comb-rust-controller")),
+                pause_processes,
+                shim_processes,
+            )
         elif type == "golang":
-            go_processes = parse_containers(process_list.find("/ring-go-controller"))
-            native_golang = total_cgroupv2_usage(go_processes, pause_processes, shim_processes)
-            mem_usage, mem_max, mem_max_per_pod = modulator.calculate_memory_max(native_golang, nr_operators)
-            update_memory_pressure(go_processes, mem_max_per_pod)
+            modulator.update_runtime(
+                "golang",
+                parse_containers(process_list.find("/ring-go-controller")),
+                pause_processes,
+                shim_processes,
+            )
         elif type == "wasm":
-            wasm_processes = parse_containers(process_list.find("/controller /"))
-            wasm_rust = total_cgroupv2_usage(wasm_processes, pause_processes, shim_processes)
-            mem_usage, mem_max, mem_max_per_pod = modulator.calculate_memory_max(wasm_rust, nr_operators)
-            update_memory_pressure(wasm_processes, mem_max_per_pod)
+            modulator.update_runtime(
+                "wasm",
+                parse_containers(process_list.find("/controller /")),
+                pause_processes,
+                shim_processes,
+            )
+        
+        app_mem, app_limit, containerd_mem, containerd_limit, pause_mem = modulator.update_max()
 
         with open(output_file, 'a') as file_object:
-            file_object.write(f'{time.time()};{mem_usage};{mem_max};{mem_max_per_pod}\n'.replace(".", ","))
+            file_object.write(f'{time.time()};{app_mem};{app_limit};{containerd_mem};{containerd_limit};{pause_mem}\n'.replace(".", ","))
 
         time.sleep(1)

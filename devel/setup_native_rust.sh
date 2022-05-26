@@ -47,9 +47,9 @@ pushd tests/native_rust
 
         cp ../../controllers/ring-rust-controller/bin/ring-rust-controller.$CONTROLLER_NAME ./temp/ring-rust-controller
 
-        if [[ "$(docker images -q "github.com/amurant/native_rust:$CONTROLLER_NAME" 2> /dev/null)" == "" ]]; then
-            docker build -f Dockerfile -t "github.com/amurant/native_rust:$CONTROLLER_NAME" ./temp/
-        fi
+        # if [[ "$(docker images -q "github.com/amurant/native_rust:$CONTROLLER_NAME" 2> /dev/null)" == "" ]]; then
+        docker build -f Dockerfile -t "github.com/amurant/native_rust:$CONTROLLER_NAME" ./temp/
+        # fi
     done
 
     # Load the docker images

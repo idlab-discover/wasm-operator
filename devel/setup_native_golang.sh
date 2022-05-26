@@ -45,9 +45,9 @@ pushd tests/native_golang
 
         cp ../../controllers/ring-go-controller/bin/ring-go-controller.$CONTROLLER_NAME ./temp/ring-go-controller
 
-        if [[ "$(docker images -q "github.com/amurant/native_golang:$CONTROLLER_NAME" 2> /dev/null)" == "" ]]; then
-            docker build -f Dockerfile -t "github.com/amurant/native_golang:$CONTROLLER_NAME" ./temp/
-        fi
+        # if [[ "$(docker images -q "github.com/amurant/native_golang:$CONTROLLER_NAME" 2> /dev/null)" == "" ]]; then
+        docker build -f Dockerfile -t "github.com/amurant/native_golang:$CONTROLLER_NAME" ./temp/
+        # fi
     done
 
     # Load the docker images

@@ -28,11 +28,11 @@ EOF
 
     last_index=$((nr_controllers-1))
 
-    echo "${run} - ${nonce}: waiting for ${namespace_prefix}"
+    echo "${run} - ${nonce}: waiting for ${namespace_prefix}${last_index}"
     while true
     do
         kubectl wait -n ${namespace_prefix}${last_index} TestResource ${run} --for=jsonpath='{.spec.nonce}'=$nonce || {
-            echo "${run} - ${nonce}: FAILED waiting for ${namespace_prefix}; retrying"
+            echo "${run} - ${nonce}: FAILED waiting for ${namespace_prefix}${last_index}; retrying"
 
             sleep 1
             
@@ -46,7 +46,7 @@ EOF
     end=`date +%s%N`
     runtime=$(((end-start)/1000000))
     echo "${start};${end};${runtime}" >> $out_file
-    echo "${run} - ${nonce}: ${namespace_prefix} is ready (${runtime}ms)"
+    echo "${run} - ${nonce}: ${namespace_prefix}${last_index} is ready (${runtime}ms)"
 }
 
 test_controller() {
