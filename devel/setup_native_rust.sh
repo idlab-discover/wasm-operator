@@ -19,12 +19,14 @@ NR_CONTROLLERS=$1
 
 CONTROLLER_NAMES=()
 
+echo ">> Build the controller native rust"
+COMPILE_NONCE="REPLACE_MEREPLACE_ME" cross build --manifest-path controllers/ring-rust-controller/Cargo.toml --release --features client --target=x86_64-unknown-linux-musl
+
 pushd controllers/ring-rust-controller
     mkdir -p bin/
 
     # Compile the ring controller once with "REPLACE_MEREPLACE_ME" as nonce
-    echo ">> Build the controller"
-    COMPILE_NONCE="REPLACE_MEREPLACE_ME" cargo build --release --features client --target=x86_64-unknown-linux-musl
+    echo ">> Build the controller native rust"
     cp ./target/x86_64-unknown-linux-musl/release/ring-pod-example ./bin/ring-rust-controller.REPLACE_ME
 
     # Create unique versions of the controller by replacing the "REPLACE_MEREPLACE_ME" nonce value

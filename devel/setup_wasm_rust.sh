@@ -20,7 +20,7 @@ NR_CONTROLLERS=$1
 # Build the WASM binary & parent controller
 echo ">> Build the WASM binary & parent controller"
 pushd pkg/controller
-    cargo build --release --target=x86_64-unknown-linux-musl
+   cross build --release --target=x86_64-unknown-linux-musl
 popd
 
 CONTROLLER_NAMES=()
@@ -29,7 +29,7 @@ pushd controllers/ring-rust-controller
     mkdir -p bin_wasm/
 
     # Compile the ring controller once with "REPLACE_MEREPLACE_ME" as nonce
-    echo ">> Build the controller"
+    echo ">> Build the controller wasm rust"
     COMPILE_NONCE="REPLACE_MEREPLACE_ME" cargo wasi build --release --features client-wasi
     wasm-opt -Os ./target/wasm32-wasi/release/ring-pod-example.wasi.wasm -o ./target/wasm32-wasi/release/ring-pod-example.wasi.opt.wasm
     cp ./target/wasm32-wasi/release/ring-pod-example.wasi.opt.wasm ./bin_wasm/ring-rust-example.wasi.REPLACE_ME.wasm

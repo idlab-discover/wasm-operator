@@ -19,14 +19,18 @@ NR_CONTROLLERS=$1
 
 CONTROLLER_NAMES=()
 
+
+echo ">> Build the controller native rust combined"
+COMPILE_NONCE="REPLACE_MEREPLACE_ME" cross build --manifest-path controllers/comb-rust-controller/Cargo.toml --release --features client --target=x86_64-unknown-linux-musl
+
 pushd controllers/comb-rust-controller
     mkdir -p bin/
 
     # Compile the comb controller once with "REPLACE_MEREPLACE_ME" as nonce
-    echo ">> Build the controller"
-    COMPILE_NONCE="REPLACE_MEREPLACE_ME" cargo build --release --features client --target=x86_64-unknown-linux-musl
+    echo ">> move the controller native rust combined"
+    # COMPILE_NONCE="REPLACE_MEREPLACE_ME" cargo build --release --features client --target=x86_64-unknown-linux-gnu
     cp ./target/x86_64-unknown-linux-musl/release/ring-pod-example ./bin/comb-rust-controller.REPLACE_ME
-
+    #TODO why is there not a for loop here ? only 1 container will be added...
     # Create unique versions of the controller by replacing the "REPLACE_MEREPLACE_ME" nonce value
     echo ">> Create variants"
     CONTROLLER_NAME="controller"
@@ -67,9 +71,10 @@ echo ">> Deploy manifests"
 
 # Setup CRDs, Namespaces, RBAC rules
 kubectl apply -f ./tests/yaml/
-
+echo ">> kubectl apply -f ./tests/yaml/"
 # Setup CRDs, Namespaces, RBAC rules
 kubectl apply -f ./tests/native_rust_comb/temp/deploy/
-
+echo ">> kubectl apply -f ./tests/native_rust_comb/temp/deploy/"
 # Wait for pods to become ready
 kubectl -n native-rust-comb wait --for=condition=ready pod --all --timeout=3000s
+echo ">> setup  native  rust combined  done"

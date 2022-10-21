@@ -48,3 +48,10 @@ pin-project = "^1.0.10"
 [profile.release]
 # Tell `rustc` to optimize for small code size.
 opt-level = "s"
+
+
+[package.metadata.cross.build.env]
+passthrough = [
+    "COMPILE_NONCE", "COMPILE_WITH_UNINSTANTIATE"
+]
+
