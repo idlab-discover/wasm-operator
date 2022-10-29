@@ -143,7 +143,7 @@ async fn reconcile(
     match out_test_resources.get(&name).await {
         Ok(mut existing) => {
             if nonce > existing.spec.nonce {
-                println!("nonce > current nonce, resetting resource");
+                println!("nonce {} > current nonce  {}, resetting resource",nonce,existing.spec.nonce );
                 existing.spec.nonce = nonce;
                 existing.spec.updated_at = Some(now_timestamp);
                 out_test_resources
