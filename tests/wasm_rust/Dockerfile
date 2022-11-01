@@ -7,7 +7,7 @@ COPY ./controller .
 
 COPY ./*.wasm ./
 COPY ./wasm_config.yaml .
-
+ENV  RUST_BACKTRACE=full
 USER 65532:65532
 
 ENTRYPOINT ["/controller", "/"]

@@ -25,14 +25,21 @@ popd
 
 CONTROLLER_NAMES=()
 
+
+export RUST_BACKTRACE=1
+
 pushd controllers/ring-rust-controller
     mkdir -p bin_wasm/
 
     # Compile the ring controller once with "REPLACE_MEREPLACE_ME" as nonce
     echo ">> Build the controller wasm rust"
     COMPILE_NONCE="REPLACE_MEREPLACE_ME" cargo wasi build --release --features client-wasi
-    wasm-opt -Os ./target/wasm32-wasi/release/ring-pod-example.wasi.wasm -o ./target/wasm32-wasi/release/ring-pod-example.wasi.opt.wasm
-    cp ./target/wasm32-wasi/release/ring-pod-example.wasi.opt.wasm ./bin_wasm/ring-rust-example.wasi.REPLACE_ME.wasm
+    echo ">> optimise wasm"
+    # why use wasm opt when it is default already  optimised using  cargo wasi
+    wasm-opt --version
+    #wasm-opt -Os ./target/wasm32-wasi/release/ring-pod-example.wasi.wasm -o ./target/wasm32-wasi/release/ring-pod-example.wasi.opt.wasm 
+    #cp ./target/wasm32-wasi/release/ring-pod-example.wasi.opt.wasm ./bin_wasm/ring-rust-example.wasi.REPLACE_ME.wasm
+    cp ./target/wasm32-wasi/release/ring-pod-example.wasi.wasm ./bin_wasm/ring-rust-example.wasi.REPLACE_ME.wasm
 
     # Create unique versions of the controller by replacing the "REPLACE_MEREPLACE_ME" nonce value
     echo ">> Create variants"
@@ -49,6 +56,7 @@ pushd tests/wasm_rust
     rm -rf ./temp/ && mkdir -p ./temp/deploy/
 
     cp ../../pkg/controller/target/x86_64-unknown-linux-musl/release/controller ./temp/
+    #cp ../../pkg/controller/target/x86_64-unknown-linux-musl/debug/controller ./temp/
     cp ../../controllers/ring-rust-controller/bin_wasm/*.wasm ./temp/
     generate_wasm_yaml_file $NR_CONTROLLERS "wasm-rust" > ./temp/wasm_config.yaml
 

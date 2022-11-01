@@ -19,6 +19,7 @@ nritters=100
 
 export COMPILE_WITH_UNINSTANTIATE="TRUE"
 export HEAP_MEM_SIZE=0
+export RUST_BACKTRACE=1
 ./devel/create_cluster.sh
 ./devel/setup_wasm_rust.sh $nrworkers
 ./devel/test.sh $nrworkers 5 "wasm-rust" /tmp/setup_time.csv
