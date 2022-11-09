@@ -211,6 +211,19 @@ check_tool_heaptrack() {
   }
 }
 
+check_tool_Cross() {
+  executable_exist cross || {
+    pushd "${TOOLS_PATH}"
+
+    cargo install cross --git https://github.com/cross-rs/cross
+
+    popd
+  }
+}
+
+
+
+
 
 # Config variables
 KIND_CLUSTER_NAME="kind"
