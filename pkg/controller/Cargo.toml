@@ -14,13 +14,13 @@ log = "^0.4.16"
 hyper-timeout = {version = "0.4.1"}
 tracing = { version = "0.1.24", features = ["log"] }
 
-wasmtime = { version = "^0.36.0", default-features = false, features = [
+wasmtime = { version = "^1.0.0", default-features = false, features = [
     "parallel-compilation",
     "cranelift",
     "pooling-allocator",
     "memory-init-cow",
 ] }
-wasmtime-wasi = { version = "^0.36.0" }
+wasmtime-wasi = { version = "^1.0.0" }
 kube = { path = "../kube-rs/kube", version = "0.71.0", default-features = false, features = ["client", "rustls-tls"] }
 hyper = { version = "0.14.18", features = ["client", "http1", "http2", "stream", "tcp"] }
 hyper-rustls = "^0.23.0"
@@ -48,3 +48,10 @@ pin-project = "^1.0.10"
 [profile.release]
 # Tell `rustc` to optimize for small code size.
 opt-level = "s"
+
+
+[package.metadata.cross.build.env]
+passthrough = [
+    "COMPILE_NONCE", "COMPILE_WITH_UNINSTANTIATE"
+]
+

@@ -22,7 +22,7 @@ pushd controllers/ring-go-controller
     mkdir -p bin/
 
     # Compile the ring controller once with "REPLACE_MEREPLACE_ME" as nonce
-    echo ">> Build the controller"
+    echo ">> Build the controller native go"
     GOGC=100 go build -ldflags "-s -w -X main.CompileNonce=REPLACE_MEREPLACE_ME" -o ./bin/ring-go-controller.REPLACE_ME
 
     # Create unique versions of the controller by replacing the "REPLACE_MEREPLACE_ME" nonce value

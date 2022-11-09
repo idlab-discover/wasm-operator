@@ -23,6 +23,7 @@ impl Environment {
     pub fn new() -> Result<Self, Error> {
         let mut config = Config::new();
         config.generate_address_map(false);
+        // TODO memory_init_cow is default true in newer versions of wasm time
         config.memory_init_cow(true);
         config.cranelift_opt_level(OptLevel::SpeedAndSize);
 
