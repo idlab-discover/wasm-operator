@@ -3,6 +3,23 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+generate_wasm_yaml_file_simple() {
+
+  cat << EOF
+name: "simplecontroller"
+wasm: ./simple-pod-example.wasm
+env:
+- name: RUST_LOG
+  value: "info"
+---
+EOF
+
+
+}
+
+
+
+
 generate_wasm_yaml_file() {
   NR_CONTROLLERS=$1
   NAME=$2

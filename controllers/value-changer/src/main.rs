@@ -1,23 +1,46 @@
-use kube::{Client, api::{Api,  PostParams, }};
-use k8s_openapi::api::core::v1::Secret;
-use std::{collections::BTreeMap};
-use k8s_openapi::ByteString;
-use std::str;
-use base64::{ decode};
+use kube::{Client, api::{Api,  PostParams} };
 use tokio::time;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::MicroTime;
 use chrono::{Local, Utc};
+use snafu::Snafu;
+use serde::{Deserialize, Serialize};
+use schemars::JsonSchema;
+
+use kube_derive::CustomResource;
 
 const NRITERATIONS: i32 = 20;
 const TIMEINTERVAL:u64 = 2;
 const KUBESECRET:&str = "varsecret";
-const KUBESECRETVAR:&str = "var";
+
+
+#[derive(Debug, Snafu)]
+enum Error {
+    #[snafu(display("Kube error: {}", source))]
+    #[snafu(context(false))]
+    UnknownKubeError { source: kube::Error },
+}
+
+#[derive(CustomResource, Debug, Serialize, Deserialize, Default, Clone, JsonSchema)]
+#[kube(
+    kind = "TestResource",
+    group = "amurant.io",
+    version = "v1",
+    namespaced
+)]
+
+pub struct TestResourceSpec {
+    nonce: i64,
+    updated_at: Option<MicroTime>,
+}
+
 
 #[tokio::main]
 async fn main() {
     let _ = main_async().await;
 }
-
+// TODO maybe use a csv file with  change times to simulate a real operator instead of constant interval..., once date is collected
 
 async fn main_async()  {
     println!("Changing secret every {TIMEINTERVAL} seconds");
@@ -30,9 +53,7 @@ async fn main_async()  {
         
     }
     
-
-    let secrets: Api<Secret> = Api::namespaced(clientunwrapped, "default");
-
+    let secrets: Api<TestResource> = Api::namespaced(clientunwrapped, "default");
     let mut interval = time::interval(time::Duration::from_secs(TIMEINTERVAL));
     for _i in 0..NRITERATIONS {
         interval.tick().await;
@@ -47,45 +68,44 @@ async fn main_async()  {
 
 
 
-async fn change_secret(secrets: &Api<Secret>) -> Result<String, kube::Error> {
+async fn change_secret(secrets: &Api<TestResource>) -> Result<String, Error> {
     let now_timestamp = MicroTime(Local::now().with_timezone(&Utc));
 
 
     match secrets.get(KUBESECRET).await {
-        Ok(mut secret) => {
+        Ok(mut existing) => {
 
-            let mut secret_data: BTreeMap<String, ByteString>  = secret.data.unwrap();
-            let secretvar = &secret_data[KUBESECRETVAR];
-
-            let decoded = serde_json::to_string(&secretvar).unwrap();
-
-            let mut chars = decoded.chars();
-            chars.next();
-            chars.next_back();
-            let trimmed = chars.as_str();
-
-            let decodedarr = decode(trimmed).unwrap();
-            let decodedstr = String::from_utf8(decodedarr).unwrap();
-
-            let mut nr : i32 = decodedstr.parse().unwrap();
-            let original_nr = nr;
-            nr +=1;
-            let nrstr = nr.to_string();
-            let bytesstr =nrstr.as_bytes();
-
-            //let vec1 = vec![2];
-            let bytes= ByteString(bytesstr.to_vec());
-            secret_data.insert(KUBESECRETVAR.to_string(), bytes);
-
-            secret.data =  Some(secret_data);
-            secrets.replace(KUBESECRET, &PostParams::default(), &secret).await?;
-            println!("{:?}    changed secret {:?} to {:?}", now_timestamp.0.to_string(),original_nr,nr);
+            existing.spec.nonce +=1;
+            secrets.replace(KUBESECRET, &PostParams::default(), &existing).await?;
+            println!("{:?}    changed secret {:?} to {:?}", now_timestamp.0.to_string(),existing.spec.nonce -1,existing.spec.nonce );
         }
-
+        Err(kube::Error::Api(ae)) if ae.code == 404 => {
+            let index: i64 = 1;
+            secrets
+                .create(
+                    &PostParams::default(),
+                    &test_resource(&KUBESECRET, &index, now_timestamp),
+                )
+                .await?;
+        }
 
         Err(e) => panic!("{}", e),
     }
 
     Ok("Secret data here ideally!".to_string())
 
+}
+
+
+fn test_resource(name: &str, nonce: &i64, start_timestamp: MicroTime) -> TestResource {
+    TestResource {
+        metadata: ObjectMeta {
+            name: Some(name.to_string()),
+            ..Default::default()
+        },
+        spec: TestResourceSpec {
+            nonce: nonce.clone(),
+            updated_at: Some(start_timestamp),
+        },
+    }
 }
