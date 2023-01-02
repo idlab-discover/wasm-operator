@@ -28,8 +28,6 @@ CONTROLLER_NAMES=()
 
 export RUST_BACKTRACE=1
 
-kubectl delete secret varsecret  --ignore-not-found
-kubectl create secret generic varsecret --from-literal=var='1'
 
 pushd controllers/simple-rust-controller
     mkdir -p bin_wasm/
@@ -40,9 +38,10 @@ pushd controllers/simple-rust-controller
     echo ">> optimise wasm"
     # why use wasm opt when it is default already  optimised using  cargo wasi
     #wasm-opt --version
+    wasm-opt -Os ./target/wasm32-wasi/release/simple-pod-example.wasi.wasm -o ./target/wasm32-wasi/release/simple-pod-example.wasi.wasm1 
     #wasm-opt -Os ./target/wasm32-wasi/release/ring-pod-example.wasi.wasm -o ./target/wasm32-wasi/release/ring-pod-example.wasi.opt.wasm 
     #cp ./target/wasm32-wasi/release/ring-pod-example.wasi.opt.wasm ./bin_wasm/ring-rust-example.wasi.REPLACE_ME.wasm
-    cp ./target/wasm32-wasi/release/simple-pod-example.wasi.wasm ./bin_wasm/simple-pod-example.wasm
+    cp ./target/wasm32-wasi/release/simple-pod-example.wasi.wasm1 ./bin_wasm/simple-pod-example.wasm
 
     # Create unique versions of the controller by replacing the "REPLACE_MEREPLACE_ME" nonce value
     #echo ">> Create variants"
@@ -55,7 +54,7 @@ pushd controllers/simple-rust-controller
 popd
 
 
-pushd tests/wasm_rust
+pushd tests/wasm_rust_simple
     rm -rf ./temp/ && mkdir -p ./temp/deploy/
 
     cp ../../pkg/controller/target/x86_64-unknown-linux-musl/release/controller ./temp/
@@ -65,17 +64,17 @@ pushd tests/wasm_rust
 
     # Build the docker image
     echo ">> Build the docker image"
-    local_tag="controllerSimple"
-    docker build -f Dockerfile -t "github.com/amurant/wasm_rust:${local_tag}" ./temp/
+    local_tag="controller0"
+    docker build -f Dockerfile -t "github.com/amurant/wasm_rust_simple:${local_tag}" ./temp/
     
     # Load the docker images
     echo ">> Load the docker images"
-    kind load docker-image --name "${KIND_CLUSTER_NAME}" "github.com/amurant/wasm_rust:${local_tag}"
+    kind load docker-image --name "${KIND_CLUSTER_NAME}" "github.com/amurant/wasm_rust_simple:${local_tag}"
 
     # Generate the yaml files
     echo ">> Generate the yaml files"
-    #  generate_namespace_yaml_file $NR_CONTROLLERS "wasm-rust" > temp/deploy/01_namespaces.yaml
-    generate_pod_yaml_file 1 "wasm-rust" "github.com/amurant/wasm_rust:" > temp/deploy/02_pod.yaml
+    generate_namespace_yaml_file_simple $NR_CONTROLLERS "wasm-rust-simple" > temp/deploy/01_namespaces.yaml
+    generate_pod_yaml_file_simple_rust > temp/deploy/02_pod.yaml
 popd
 
 echo ">> Deploy manifests"
@@ -83,8 +82,12 @@ echo ">> Deploy manifests"
 # Setup CRDs, Namespaces, RBAC rules
 kubectl apply -f ./tests/yaml/
 
+echo ">> Deploy first"
+
 # Setup CRDs, Namespaces, RBAC rules
-kubectl apply -f ./tests/wasm_rust/temp/deploy/
+kubectl apply -f ./tests/wasm_rust_simple/temp/deploy/
+
+echo ">> Deploy second"
 
 # Wait for pods to become ready
-kubectl -n wasm-rust wait --for=condition=ready pod --all --timeout=3000s
+kubectl -n wasm-rust-simple wait --for=condition=ready pod --all --timeout=3000s

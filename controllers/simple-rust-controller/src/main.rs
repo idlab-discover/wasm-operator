@@ -3,10 +3,10 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 
 use kube::{
     api::{ListParams, PostParams},
-    Api, Client, CustomResource, ResourceExt,
+    Api, Client, CustomResource,
 };
 use kube_runtime::controller::{Action, Context, Controller};
-use k8s_openapi::ByteString;
+
 use chrono::{Local, Utc};
 use futures::StreamExt;
 use schemars::JsonSchema;
@@ -17,26 +17,21 @@ use std::sync::Arc;
 use std::time::Duration;
 use tracing::debug;
 use tracing::info;
-use std::{collections::BTreeMap};
-use k8s_openapi::api::core::v1::Secret;
-use std::str;
-use base64::{ decode};
-
-
-//dunno
-//use kube_runtime::controller::Error;
-//use tracing_subscriber::registry::Data;
-use kube::Error;
-use std::ops::Deref;
-use futures::task::SpawnExt;
 
 
 
-const NRITERATIONS: i32 = 20;
-const TIMEINTERVAL:u64 = 2;
 const KUBESECRET:&str = "varsecret";
-const KUBESECRETVAR:&str = "var";
 
+
+#[cfg(target_arch = "wasm32")]
+use {futures::task::SpawnExt, std::ops::Deref};
+
+#[derive(Debug, Snafu)]
+enum Error {
+    #[snafu(display("Kube error: {}", source))]
+    #[snafu(context(false))]
+    UnknownKubeError { source: kube::Error },
+}
 
 
 #[derive(CustomResource, Debug, Serialize, Deserialize, Default, Clone, JsonSchema)]
@@ -44,7 +39,7 @@ const KUBESECRETVAR:&str = "var";
     kind = "TestResource",
     group = "amurant.io",
     version = "v1",
-    namespaced // maybe secrets here ?
+    namespaced 
 )]
 pub struct TestResourceSpec {
     nonce: i64,
@@ -88,7 +83,7 @@ async fn main() {
 
 async fn main_async() {
     tracing_subscriber::fmt::init();
-    println!("main launched simple");
+    println!("main launched simple child");
 
     let client = Client::try_default()
         .await
@@ -123,63 +118,57 @@ async fn main_async() {
 
 
 async fn reconcile(
-    in_test_resource: Arc<TestResource>,
+    resource: Arc<TestResource>,
     ctx: Context<Data>,
 ) -> Result<Action, Error> {
 
     println!("reconcile called");
 
     let client = ctx.get_ref().client.clone();
-    let secrets: Api<Secret> = Api::namespaced(client, "default");
+    //or use provided resource in arc
+    let resource: Api<TestResource> = Api::namespaced(client, "default");
 
 
 
     let now_timestamp = MicroTime(Local::now().with_timezone(&Utc));
 
 
-    match secrets.get(KUBESECRET).await {
-        Ok(mut secret) => {
+    match resource.get(KUBESECRET).await {
+        Ok(mut existing) => {
 
-            let mut secret_data: BTreeMap<String, ByteString>  = secret.data.unwrap();
-            let secretvar = &secret_data[KUBESECRETVAR];
-
-            let decoded = serde_json::to_string(&secretvar).unwrap();
-
-            let mut chars = decoded.chars();
-            chars.next();
-            chars.next_back();
-            let trimmed = chars.as_str();
-
-            let decodedarr = decode(trimmed).unwrap();
-            let decodedstr = String::from_utf8(decodedarr).unwrap();
-
-            let mut nr : i32 = decodedstr.parse().unwrap();
-            let original_nr = nr;
-            nr +=1;
-            let nrstr = nr.to_string();
-            let bytesstr =nrstr.as_bytes();
-
-            //let vec1 = vec![2];
-            let bytes= ByteString(bytesstr.to_vec());
-            secret_data.insert(KUBESECRETVAR.to_string(), bytes);
-
-            secret.data =  Some(secret_data);
-            secrets.replace(KUBESECRET, &PostParams::default(), &secret).await?;
-            println!("{:?}    changed secret {:?} to {:?}", now_timestamp.0.to_string(),original_nr,nr);
+            
+           
+            println!("{:?}    child node reconsile changed secret on {:?} to {:?}", now_timestamp.0.to_string(),existing.spec.nonce -1,existing.spec.nonce );
         }
-
+        Err(kube::Error::Api(ae)) if ae.code == 404 => {
+            println!("No testresource, made new one");
+            let index: i64 = 1;
+            resource
+                .create(
+                    &PostParams::default(),
+                    &test_resource(&KUBESECRET, &index, now_timestamp),
+                )
+                .await?;
+        }
 
         Err(e) => panic!("{}", e),
     }
-
-
-
-
 
     Ok(Action::await_change())
 }
 
 
-
+fn test_resource(name: &str, nonce: &i64, start_timestamp: MicroTime) -> TestResource {
+    TestResource {
+        metadata: ObjectMeta {
+            name: Some(name.to_string()),
+            ..Default::default()
+        },
+        spec: TestResourceSpec {
+            nonce: nonce.clone(),
+            updated_at: Some(start_timestamp),
+        },
+    }
+}
 
 

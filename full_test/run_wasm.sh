@@ -22,14 +22,21 @@ export HEAP_MEM_SIZE=0
 export RUST_BACKTRACE=1
 ./devel/create_cluster.sh
 ./devel/setup_wasm_rust_simple.sh $nrworkers
-./devel/test.sh $nrworkers 1 "wasm-rust" /tmp/setup_time.csv
+#./devel/test.sh $nrworkers 1 "wasm-rust" /tmp/setup_time.csv
 #./profile/profile.sh wasm ./test_results_run$run/out_wasm_${nrworkers}_uninst.csv &
 #profilePID=$!
-./devel/test.sh $nrworkers $nritters "wasm-rust" ./test_results_run$run/out_wasm_${nrworkers}_time_uninst.csv
+#./devel/test.sh $nrworkers $nritters "wasm-rust" ./test_results_run$run/out_wasm_${nrworkers}_time_uninst.csv
+
+echo "done with setting everything up"
+
+sleep $((  5 ))
+
+pushd controllers/value-changer
+    cargo run
+popd
+
+kubectl logs -n wasm-rust-simple controller0  
 
 
-kubectl logs controller0 -n wasm-rust | head -n 30
-
-
-sleep $((  60 ))
+# sleep $((  60 ))
 #sudo pkill -P $profilePID

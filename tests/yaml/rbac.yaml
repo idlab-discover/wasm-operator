@@ -34,6 +34,12 @@ metadata:
   name: custom-controller
   namespace: wasm-rust
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: custom-controller
+  namespace: wasm-rust-simple
+---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -51,6 +57,10 @@ subjects:
 - kind: ServiceAccount
   name: custom-controller
   namespace: wasm-rust
+- kind: ServiceAccount
+  name: custom-controller
+  namespace: wasm-rust-simple
+
 roleRef:
   kind: ClusterRole
   name: custom-controller

@@ -11,7 +11,7 @@ wasm: ./simple-pod-example.wasm
 env:
 - name: RUST_LOG
   value: "info"
----
+
 EOF
 
 
@@ -105,6 +105,27 @@ spec:
 EOF
 }
 
+generate_pod_yaml_file_simple_rust() {
+
+
+  cat << EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: controller0
+  namespace: wasm-rust-simple
+spec:
+  serviceAccountName: custom-controller
+  containers:
+  - name: controller
+    image: "github.com/amurant/wasm_rust_simple:controller0"
+    env:
+    - name: RUST_LOG
+      value: "info"
+EOF
+
+}
+
 generate_namespace_yaml_file() {
   NR_CONTROLLERS=$1
   NAME=$2
@@ -117,6 +138,24 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: "${NAME}${CONTROLLER_NR}"
+---
+EOF
+
+  done
+}
+
+generate_namespace_yaml_file_simple() {
+  NR_CONTROLLERS=$1
+  NAME=$2
+
+  for (( CONTROLLER_NR = 0; CONTROLLER_NR < NR_CONTROLLERS; CONTROLLER_NR++ ))
+  do
+  
+  cat << EOF
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "${NAME}"
 ---
 EOF
 
