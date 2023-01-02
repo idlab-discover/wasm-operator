@@ -24,6 +24,8 @@ log = "^0.4.14"
 
 tokio = { version = "1.14.0", optional = true, features = ["macros", "rt-multi-thread"] }
 
+
+
 [features]
 client-wasi = ["kube/client-wasi", "kube-runtime/client-wasi"]
 client = ["kube/client", "kube/rustls-tls", "kube-runtime/client", "tokio"]
