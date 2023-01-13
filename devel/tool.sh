@@ -34,7 +34,7 @@ executable_exist() {
 
 check_tool_kind() {
   executable_exist kind || {
-    curl -Lo "${TOOLS_PATH}/kind" "https://kind.sigs.k8s.io/dl/v0.13.0/kind-linux-amd64"
+    curl -Lo "${TOOLS_PATH}/kind" "https://kind.sigs.k8s.io/dl/v0.17.0/kind-linux-amd64"
     chmod +x "${TOOLS_PATH}/kind"
   }
 }

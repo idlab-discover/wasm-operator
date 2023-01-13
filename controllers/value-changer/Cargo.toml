@@ -20,6 +20,6 @@ kube-derive = "0.77.0"
 schemars = { version = "0.8.3", features = ["chrono"] }
 serde = { version = "1.0.111", features = ["derive"] }
 serde_json = "1.0.53"
-
+csv = "1.1.6"
 
 
