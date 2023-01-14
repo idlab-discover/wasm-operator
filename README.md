@@ -11,13 +11,15 @@ For more information, read the paper [Adapting Kubernetes controllers to the edg
 This project builds upon [this proof of concept](https://github.com/slinkydeveloper/extending-kubernetes-api-in-process-poc).
 
 ```text
-+-- 📂controllers                       # All operators used for testing
++-- 📂controllers                       # All child operators / components used for testing
 |   +-- 📂comb-rust-controller          # Rust combined operator (no isolation)
 |   +-- 📂ring-go-controller            # Go operator (container-based)
 |   +-- 📂ring-rust-controller          # Rust operator (container-based and WASM-based)
+|   +-- 📂simple-rust-controller        # simple child operator (container-based and WASM-based)
+|   +-- 📂value-changer                 # script to change watched resources based on traces to emulate resource changes
 |   :
 +-- 📂devel                             # Tools for building & deploying
-+-- 📂full_test                         # Script for running e2e test & benchmark
++-- 📂full_test                         # Scripts for running e2e test & benchmark
 +-- 📂pkg
 |   +-- 📂controller                    # Parent controller
 |   +-- 📂kube-rs                       # Modified kube-rs library
@@ -32,6 +34,12 @@ This project builds upon [this proof of concept](https://github.com/slinkydevelo
 
 ```console
 > ./full_test/run.sh
+```
+
+## Run wasm test only
+
+```console
+> ./full_test/run_wasm.sh
 ```
 
 ## Copyright
