@@ -91,7 +91,7 @@ async fn change_secret(secrets: &Api<TestResource>) -> Result<String, Error> {
 
         Err(e) => panic!("{}", e),
     }
-    Ok()
+    Ok("ok".to_string())
 }
 
 // read the traces.csv file in the directory and convert time stamps into time intervals
@@ -101,7 +101,7 @@ fn  read_traces() -> Vec<Duration>{
     
     let header = reader.headers().expect("can't read headers");
     
-    println!("{:?}",header);
+    
     let mut parsed_dates = vec![];
 
     for date in reader.records(){

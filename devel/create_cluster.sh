@@ -8,6 +8,7 @@ source "${SCRIPT_ROOT}/tool.sh"
 
 check_tool docker
 check_tool kind
+
 kind --version
 kind delete clusters "${KIND_CLUSTER_NAME}"
 
