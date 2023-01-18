@@ -55,6 +55,8 @@ impl ControllerModule {
             && !self.wasm.is_uninstantiating()
             && *COMPILE_WITH_UNINSTANCIATE
         {
+            debug!("doing uninstatniate");
+
             self.wasm.uninstantiate();
             cx.waker().wake_by_ref();
         }

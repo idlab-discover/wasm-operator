@@ -27,7 +27,8 @@ CONTROLLER_NAMES=()
 
 
 export RUST_BACKTRACE=1
-
+export COMPILE_WITH_UNINSTANTIATE="TRUE"
+export RUSTFLAGS="-g"
 
 pushd controllers/simple-rust-controller
     mkdir -p bin_wasm/

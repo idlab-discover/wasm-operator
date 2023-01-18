@@ -33,11 +33,11 @@ nodes:
           unsafe-no-fsync: "True"
 
 #worker nodes to emulate more node cluster
-- role: worker
-- role: worker
-- role: worker
-- role: worker
-- role: worker
-- role: worker
-- role: worker
+#- role: worker
+#- role: worker
+#- role: worker
+#- role: worker
+#- role: worker
+#- role: worker
+#- role: worker
 

@@ -46,7 +46,7 @@ fn main() {
 
     let path = PathBuf::from(args.remove(1));
     info!("Going to load from {}", path.to_str().unwrap());
-
+    
     let cache_path = std::env::temp_dir().join("cache");
     std::fs::create_dir_all(&cache_path).unwrap();
 
