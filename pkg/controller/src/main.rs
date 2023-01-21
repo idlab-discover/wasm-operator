@@ -18,7 +18,8 @@ static A: System = System;
 fn main() {
     std::env::set_var(
         "RUST_LOG",
-        "warn,tower=warn,rustls=warn,wasmtime_cranelift=warn,cranelift=warn,regalloc=warn,hyper=warn",
+        //"debug"
+        "debug,tower=warn,rustls=warn,wasmtime_cranelift=warn,cranelift=warn,regalloc=warn,hyper=warn",
     );
 
     tracing_subscriber::fmt::init();
