@@ -17,6 +17,14 @@ cd "${SCRIPT_ROOT}/.."
 
 NR_CONTROLLERS=$1
 
+
+export RUST_BACKTRACE=1
+export COMPILE_WITH_UNINSTANTIATE="TRUE"
+export RUSTFLAGS="-g"
+#export OPENSSL_DIR="/usr"
+#echo $OPENSSL_DIR
+
+
 # Build the WASM binary & parent controller
 echo ">> Build the WASM binary & parent controller"
 pushd pkg/controller
@@ -26,9 +34,8 @@ popd
 CONTROLLER_NAMES=()
 
 
-export RUST_BACKTRACE=1
-export COMPILE_WITH_UNINSTANTIATE="TRUE"
-export RUSTFLAGS="-g"
+
+
 
 pushd controllers/simple-rust-controller
     mkdir -p bin_wasm/
@@ -75,13 +82,24 @@ pushd tests/wasm_rust_simple
     # Generate the yaml files
     echo ">> Generate the yaml files"
     generate_namespace_yaml_file_simple $NR_CONTROLLERS "wasm-rust-simple" > temp/deploy/01_namespaces.yaml
-    generate_pod_yaml_file_simple_rust > temp/deploy/02_pod.yaml
+    
+    ## get server ip of prediction server
+    SERVER="http://"
+    SERVER+=$(kubectl get service/flask-service -o jsonpath='{.spec.clusterIP}')
+    SERVER+=":5000/"
+
+    generate_pod_yaml_file_simple_rust $SERVER > temp/deploy/02_pod.yaml
 popd
+
+
 
 echo ">> Deploy manifests"
 
 # Setup CRDs, Namespaces, RBAC rules
-kubectl apply -f ./tests/yaml/
+kubectl apply -f ./tests/yaml/crd.yaml
+kubectl apply -f ./tests/yaml/namespace.yaml
+kubectl apply -f ./tests/yaml/rbac.yaml
+
 
 echo ">> Deploy first"
 

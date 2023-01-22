@@ -222,6 +222,17 @@ check_tool_Cross() {
   }
 }
 
+check_tool_pip3(){
+
+  executable_exist pip3 || {
+
+    echo "make sure python3 and pip3 is installed"
+    exit 111
+
+  }
+
+}
+
 
 
 

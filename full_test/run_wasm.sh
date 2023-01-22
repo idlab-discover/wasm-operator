@@ -21,6 +21,7 @@ export COMPILE_WITH_UNINSTANTIATE="TRUE"
 export HEAP_MEM_SIZE=0
 export RUST_BACKTRACE=1
 ./devel/create_cluster.sh
+./devel/setup_flask_server.sh
 ./devel/setup_wasm_rust_simple.sh $nrworkers
 #./devel/test.sh $nrworkers 1 "wasm-rust" /tmp/setup_time.csv
 #./profile/profile.sh wasm ./test_results_run$run/out_wasm_${nrworkers}_uninst.csv &
