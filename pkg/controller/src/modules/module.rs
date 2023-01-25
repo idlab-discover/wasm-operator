@@ -1,12 +1,12 @@
 use super::OpsRunner;
 use super::WasmRuntime;
 use crate::runtime::COMPILE_WITH_UNINSTANCIATE;
+use chrono::Duration;
 use chrono::Utc;
 use futures::executor::block_on;
 use futures::future::poll_fn;
 use futures::StreamExt;
 use futures_task::Waker;
-
 use chrono::DateTime;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use reqwest::blocking::Client;
@@ -18,17 +18,19 @@ use std::sync::Mutex;
 use std::task::Context;
 use std::task::Poll;
 use tokio::task::JoinHandle;
-use tokio::time::Duration;
+use tokio::time::Duration as Durationtk;
 use tracing::debug;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 
-const BUFFERLENGTH: usize = 10;
-const WAKEUPINTERVAL: u64 = 1000;
-const SHUTDOWNINACTIVEINTERVALMS: i64 = 950;
+const BUFFERLENGTH: usize = 10; // how long history of events to be saved
+const WAKEUPINTERVAL: u64 = 1000; // ever x seconds wake up polling
+const SHUTDOWNINACTIVEINTERVALMS: i64 = 500; // if inactive  for  x ms,  shut down
+const TIMEBEFOREPREDICTEDMs : i64  = 1200; // load back in to memory when predicted time is close
 
 #[derive(Deserialize,Debug)]
 struct ServerResp{
-    prediction:u64
+    prediction:DateTime<Utc>
 }
 
 
@@ -42,7 +44,16 @@ pub struct ControllerModule {
     last_events: VecDeque<DateTime<Utc>>,
     apiserver: String,
     http_client: Client,
+    predicted_wakeup: ServerResp
 }
+
+
+
+
+// How this  works: variables: Last event  (when  the last event  was i.e last async reques), SHUTDOWNINACTIVEINTERVALMS is  time of inactivity from last event when we want to shutdown, TIMEBEFOREPREDICTEDMs is the time before the predicted  next  wakeup
+//  Last event                        shutdown       load back mem                       predicted                                      shutdown if no  event was and prediction  was wrong
+//    |_____SHUTDOWNINACTIVEINTERVALMS__|                 | ____TIMEBEFOREPREDICTEDMs________|_________TIMEBEFOREPREDICTEDMs(grace period)________|
+//                                                                       we  hope predicted is  right and an event is made here                                                                                
 
 // How polling works https://fasterthanli.me/articles/pin-and-suffering
 impl ControllerModule {
@@ -52,12 +63,13 @@ impl ControllerModule {
         let (tx, rx): (Sender<String>, Receiver<String>) = unbounded();
         let thread_spawned = false;
         let threadhandle = None;
-        let last_events = VecDeque::with_capacity(BUFFERLENGTH);
+        let mut last_events = VecDeque::with_capacity(BUFFERLENGTH);
+        last_events.push_back(Utc::now() );
         let mut apiserver = env::var("PREDICTION_SERVER").unwrap_or("none".to_string());
         apiserver.push_str(&"prediction");
 
         let http_client = reqwest::blocking::Client::new();
-
+        let predicted_wakeup = ServerResp { prediction: Utc::now() + Duration::days(999) };
         Self {
             wasm,
             ops_runner,
@@ -68,6 +80,7 @@ impl ControllerModule {
             last_events,
             apiserver,
             http_client,
+            predicted_wakeup
         }
     }
 
@@ -107,6 +120,7 @@ impl ControllerModule {
         let runner = self.ops_runner.lock().unwrap();
 
         let has_pending_ops = !runner.pending_ops.is_empty();
+        // will be be xecuted when all instructions are over, but for operators  this is probably never
         if !has_pending_ops {
             debug!("doing poll ready");
             self.tx
@@ -123,30 +137,56 @@ impl ControllerModule {
         }
 
         if runner.have_unpolled_ops {
-            debug!("doing wake by ref");
+            //debug!("doing wake by ref");
             cx.waker().wake_by_ref();
+        }
+
+        let current_time = Utc::now();
+
+        if self.wasm.is_uninstantiating() && self.predicted_wakeup.prediction.signed_duration_since(current_time).num_milliseconds() < 0 {
+            // something is wrong, we current time is past  predicted time, deadline missed
+            debug!("doing predicted time is in past, reset");
+            self.predicted_wakeup  = ServerResp { prediction :   current_time + Duration::days(999) };
+        }
+
+        debug!("doing isinst {:?} current {:?} predicted {:?} since last {:?}", self.wasm.is_uninstantiating(),current_time, self.predicted_wakeup.prediction, *self.last_events.back().unwrap()
+    );
+
+        // check predicted time if available and  if predicted time  is close to current time, reload from  disk if it was unloaded
+        if self.wasm.is_uninstantiating() && 
+        self.predicted_wakeup.prediction.signed_duration_since(current_time).num_milliseconds() < TIMEBEFOREPREDICTEDMs {
+            debug!("doing load in memory");
+            self.wasm.load_to_mem();
+            
+
         }
 
         if runner.nr_web_calls == 0
             && !self.wasm.is_uninstantiating()
-            && *COMPILE_WITH_UNINSTANCIATE &&
+            && *COMPILE_WITH_UNINSTANCIATE 
             // only shutdown not direct but after x milliseconds of inactive
-             Utc::now().signed_duration_since(*self.last_events.back().unwrap()).num_milliseconds() > SHUTDOWNINACTIVEINTERVALMS
+            && current_time.signed_duration_since(*self.last_events.back().unwrap()).num_milliseconds() > SHUTDOWNINACTIVEINTERVALMS 
+             // do not shut down when we see  in the future predicted is coming
+            && !(self.predicted_wakeup.prediction.signed_duration_since(current_time).num_milliseconds().abs() < TIMEBEFOREPREDICTEDMs)
+
         {
             debug!("doing uninstatniate");
             self.wasm.uninstantiate();
             //debug!("doing uninstatniate done ");
-            // call a API here givent event history and wake it up  in time before  message comes in
+            // call a API here given event history and wake it up  in time before  message comes in
             cx.waker().wake_by_ref();
 
-            match self.http_client.get(self.apiserver.clone()).send() {
+            let body = json!({ "history": self.last_events });
+
+            match self.http_client.post(self.apiserver.clone()).json(&body)
+            .send() {
                 Ok(resp) => {
                     
-                    let resp : ServerResp = resp.json().unwrap();
-                    debug!("{:?}", resp  );
+                    self.predicted_wakeup = resp.json().unwrap();
+                    debug!("doing predicted time is {:?}", self.predicted_wakeup  );
                 }
                 Err(e) => {
-                    debug!("{:?}", e)
+                    debug!("doing error {:?}", e)
                 }
             }
         }
@@ -159,7 +199,7 @@ impl ControllerModule {
         let maybe_result = {
             // WASM is not running, so the lock will not delay a new op from being added using 'handle_request'
             let mut runner = self.ops_runner.lock().unwrap();
-            debug!("doing resolve async nr calls : {:?}", runner.nr_web_calls);
+            //debug!("doing resolve async nr calls : {:?}", runner.nr_web_calls);
 
             runner.have_unpolled_ops = false;
 
@@ -190,15 +230,18 @@ impl ControllerModule {
 
         // Retrieve async request results & start wasm again
         if let Some(result) = maybe_result {
-            debug!("doing wakeup");
+            
+
+            debug!("doing wakeup request unin is : {:?}", self.wasm.is_uninstantiating() );
             let now_timestamp = Utc::now();
             self.add_event_time(now_timestamp);
+            // wakeup doesn't always  "wake up from disk"
             self.wasm
                 .wakeup(result.async_request_id, result.value, result.finished)?;
-            //debug!("doing wakeup done");
+
             Ok(true)
         } else {
-            debug!("doing not wakeup");
+            //debug!("doing not wakeup");
             Ok(false)
         }
     }
@@ -211,6 +254,7 @@ impl ControllerModule {
     }
 }
 
+// TODO maybe not  do  this but poll  within? https://fasterthanli.me/articles/pin-and-suffering
 fn spawn_qeueu_thread(waker: &Waker, rx: &Receiver<String>) -> Option<JoinHandle<()>> {
     debug!("doing spawning thread");
     //self.thread_spawned = true;
@@ -218,7 +262,7 @@ fn spawn_qeueu_thread(waker: &Waker, rx: &Receiver<String>) -> Option<JoinHandle
     let rx2 = rx.clone();
     let spawn = tokio::spawn(async move {
         loop {
-            tokio::time::sleep(Duration::from_millis(WAKEUPINTERVAL)).await;
+            tokio::time::sleep(Durationtk::from_millis(WAKEUPINTERVAL)).await;
             debug!("doing other thread wakebyref");
             waker.wake_by_ref();
             let try_result = rx2.try_recv();

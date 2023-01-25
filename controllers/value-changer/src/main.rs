@@ -76,7 +76,7 @@ async fn change_secret(secrets: &Api<TestResource>) -> Result<String, Error> {
         Ok(mut existing) => {
             existing.spec.nonce +=1;
             secrets.replace(KUBESECRET, &PostParams::default(), &existing).await?;
-            println!("DEBUG {:?}    changed secret {:?}", now_timestamp.0.to_string(),existing.spec.nonce );
+            println!("DEBUG {:?}    doing changed secret {:?}", now_timestamp.0.to_string(),existing.spec.nonce );
         }
         Err(kube::Error::Api(ae)) if ae.code == 404 => {
             let index: i64 = 1;
@@ -87,7 +87,7 @@ async fn change_secret(secrets: &Api<TestResource>) -> Result<String, Error> {
                 )
                 .await?;
             let now_timestamp = MicroTime(Local::now().with_timezone(&Utc));
-            println!("DEBUG {:?}    changed secret {:?}", now_timestamp.0.to_string(),1);
+            println!("DEBUG {:?}    doing changed secret {:?}", now_timestamp.0.to_string(),1);
         }
 
         Err(e) => panic!("{}", e),
