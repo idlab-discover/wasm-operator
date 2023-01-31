@@ -15,10 +15,12 @@ def dateToRust(date):
 
 @app.route("/prediction", methods=["post"])
 def predict():
-    print(request.json)
+    print("post request made")
+    print(request.json, flush=True)
     now = dt.now(timezone.utc)
     now += timedelta(seconds=3)
     now = dateToRust(now)
+    
     return jsonify({"prediction": now})
 
 if __name__ == "__main__":

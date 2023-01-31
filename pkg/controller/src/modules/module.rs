@@ -8,13 +8,10 @@ use futures::FutureExt;
 use futures::executor::block_on;
 use futures::future::poll_fn;
 use futures::StreamExt;
-use futures_task::Waker;
 use chrono::DateTime;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use reqwest::blocking::Client;
 use tokio::time::Sleep;
-use std::borrow::Borrow;
-use std::borrow::BorrowMut;
 use std::collections::VecDeque;
 use std::env;
 use std::pin::Pin;
@@ -25,12 +22,12 @@ use std::task::Poll;
 use tokio::task::JoinHandle;
 use tokio::time::Duration as Durationtk;
 use tracing::debug;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize};
 use serde_json::json;
 
 const BUFFERLENGTH: usize = 10; // how long history of events to be saved
 const SHUTDOWNINACTIVEINTERVALMS: i64 = 500; // if inactive  for  x ms,  shut down
-const TIMEBEFOREPREDICTEDMs : i64  = 200; // load back in to memory when predicted time is close
+const TIMEBEFOREPREDICTEDMs : i64  = 500; // load back in to memory when predicted time is close
 const GRACEPERIODMs : i64 =1000;
 
 
@@ -123,9 +120,8 @@ impl ControllerModule {
         // WASM is not running, so the lock will not delay a new op from being added using 'handle_request'
         let runner = self.ops_runner.lock().unwrap();
 
-        let has_pending_ops = !runner.pending_ops.is_empty();
-        // will be be xecuted when all instructions are over, but for operators  this is probably never
-        if !has_pending_ops {
+        // will be be executed when all instructions are over, but for operators  this is probably never
+        if !(!runner.pending_ops.is_empty()) {
             debug!("doing poll ready");
             // TODO what happends to the wakups still in the sleep list when context is ready
             return Poll::Ready(Ok(()));
@@ -138,11 +134,12 @@ impl ControllerModule {
 
         let current_time = Utc::now();
 
-        if self.wasm.is_uninstantiating() && self.predicted_wakeup.prediction.signed_duration_since(current_time).num_milliseconds() < 0 {
+        if  current_time.signed_duration_since(self.predicted_wakeup.prediction).num_milliseconds() > 0 && ! in_time_grace_period(&current_time, &self.predicted_wakeup.prediction) {
             // something is wrong, we current time is past  predicted time, deadline missed
             debug!("doing predicted time is in past, reset");
             self.predicted_wakeup  = ServerResp { prediction :   current_time + Duration::days(999) };
             //todo maybe do wakeup
+            cx.waker().wake_by_ref();
         }
         debug!("doing isinst {:?} current {:?} predicted {:?} since last {:?}", self.wasm.is_uninstantiating(),current_time, self.predicted_wakeup.prediction, *self.last_events.back().unwrap());
 
@@ -151,8 +148,10 @@ impl ControllerModule {
          {
             debug!("doing load in memory");
             self.wasm.load_to_mem();
-            //wake up  again  in before graceperiod
-            let mut sleep = Box::pin(tokio::time::sleep(Durationtk::from_millis((GRACEPERIODMs) as u64)));
+            //wake up  again  after graceperiod todo better calculation than grace+timebefore for  quicker
+            let mut sleep = Box::pin(tokio::time::sleep(Durationtk::from_millis((GRACEPERIODMs+10+TIMEBEFOREPREDICTEDMs) as u64)));
+            
+            debugnextwakeup((GRACEPERIODMs+10+TIMEBEFOREPREDICTEDMs));
             sleep.poll_unpin(cx);
             self.sleepvec.push(sleep);
         }
@@ -161,7 +160,7 @@ impl ControllerModule {
             && !self.wasm.is_uninstantiating()
             && *COMPILE_WITH_UNINSTANCIATE 
             // only shutdown not direct but after x milliseconds of inactive
-            && current_time.signed_duration_since(*self.last_events.back().unwrap()).num_milliseconds() > SHUTDOWNINACTIVEINTERVALMS 
+            && is_inactive_period(&current_time, self.last_events.back().unwrap())
              // do not shut down when we see  in the future predicted is coming 
             && ! in_time_before_prediction_period(&current_time, &self.predicted_wakeup.prediction) 
             && ! in_time_grace_period(&current_time, &self.predicted_wakeup.prediction)
@@ -185,9 +184,13 @@ impl ControllerModule {
                     // wakup  before we think predicted is incoming (need min x duration before load is fisinished)
                     // TODO assume date is always in future
 
-                    let nexttime = (self.predicted_wakeup.prediction - Utc::now()).num_milliseconds();
-                    
+                    let  mut nexttime = (self.predicted_wakeup.prediction - Utc::now()).num_milliseconds() - (TIMEBEFOREPREDICTEDMs/2) ;
+                    // make it positive but maybe throw  error if neg  instead or do new prediction
+                    nexttime = nexttime.abs();
+
+
                     let mut sleep = Box::pin(tokio::time::sleep(Durationtk::from_millis(nexttime as u64)));
+                    debugnextwakeup(nexttime);
                     sleep.poll_unpin(cx);
                     self.sleepvec.push(sleep);
 
@@ -202,7 +205,11 @@ impl ControllerModule {
 
         // remove all old wakeups from vector
         self.sleepvec.retain(|e| !e.is_elapsed());
+
+
         debug!("doing pend end event");
+
+        // todo:  maybe check if it is empty do a wakeup ever x min just to be sure if some  timing goes wrong? or wait till next event and will auto wakeup
         Poll::Pending
     }
 
@@ -242,14 +249,14 @@ impl ControllerModule {
         // Retrieve async request results & start wasm again
         if let Some(result) = maybe_result {
             
-            debug!("doing wakeup request unin is : {:?}", self.wasm.is_uninstantiating() );
             let now_timestamp = Utc::now();
             self.add_event_time(now_timestamp);
             // wakeup doesn't always  "wake up from disk"
             self.wasm
                 .wakeup(result.async_request_id, result.value, result.finished)?;
 
-            let mut sleep = Box::pin(tokio::time::sleep(Durationtk::from_millis(SHUTDOWNINACTIVEINTERVALMS as u64)));
+            let mut sleep = Box::pin(tokio::time::sleep(Durationtk::from_millis((SHUTDOWNINACTIVEINTERVALMS + 10) as u64)));
+            debugnextwakeup((SHUTDOWNINACTIVEINTERVALMS + 10));
             sleep.poll_unpin(cx);
             self.sleepvec.push(sleep);
             
@@ -268,6 +275,9 @@ impl ControllerModule {
     }
 }
 
+//        load back mem                       predicted                            CURRENT
+//               | ____TIMEBEFOREPREDICTEDMs________|_________GRACEPERIODMs________|
+//                                                                                                                                                   
 
 fn in_time_before_prediction_period(current_time : &DateTime<Utc>, predicted_time: &DateTime<Utc>) -> bool{
     let difference = predicted_time.signed_duration_since(*current_time).num_milliseconds();
@@ -278,6 +288,22 @@ fn in_time_grace_period(current_time : &DateTime<Utc>, predicted_time: &DateTime
     let difference = current_time.signed_duration_since(*predicted_time).num_milliseconds();
     return difference > 0  && difference < GRACEPERIODMs
 }
+
+
+//  Last event                        shutdown/CURRENTTIME 
+//    |_____SHUTDOWNINACTIVEINTERVALMS__|  
+fn is_inactive_period(current_time : &DateTime<Utc>, lastevent: &DateTime<Utc>) -> bool{
+    let difference = current_time.signed_duration_since(*lastevent).num_milliseconds();
+    return difference > SHUTDOWNINACTIVEINTERVALMS
+}
+
+fn debugnextwakeup(time:i64){
+    let wakupptime = Utc::now() + Duration::milliseconds(time);
+    debug!("debug next  wakupcall is {:?}", wakupptime )
+
+}
+
+
 
 
 
