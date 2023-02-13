@@ -106,7 +106,7 @@ EOF
 }
 
 generate_pod_yaml_file_simple_rust() {
-
+  SERVER=$1
 
   cat << EOF
 apiVersion: v1
@@ -122,6 +122,8 @@ spec:
     env:
     - name: RUST_LOG
       value: "info"
+    - name: PREDICTION_SERVER
+      value: "${SERVER}"
 EOF
 
 }

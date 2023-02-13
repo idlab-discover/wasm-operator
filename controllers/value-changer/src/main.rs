@@ -1,10 +1,9 @@
 use kube::{Client, api::{Api,  PostParams} };
-use tokio::time;
 use tokio::time::sleep;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::MicroTime;
-use chrono::{Local, Utc, NaiveDate, NaiveDateTime, Duration};
+use chrono::{Local, Utc, NaiveDateTime, Duration};
 use snafu::Snafu;
 use serde::{Deserialize, Serialize};
 use schemars::JsonSchema;
@@ -77,7 +76,7 @@ async fn change_secret(secrets: &Api<TestResource>) -> Result<String, Error> {
         Ok(mut existing) => {
             existing.spec.nonce +=1;
             secrets.replace(KUBESECRET, &PostParams::default(), &existing).await?;
-            println!("{:?}    changed secret {:?}", now_timestamp.0.to_string(),existing.spec.nonce -1 );
+            println!("DEBUG {:?}    doing changed secret {:?}", now_timestamp.0.to_string(),existing.spec.nonce );
         }
         Err(kube::Error::Api(ae)) if ae.code == 404 => {
             let index: i64 = 1;
@@ -87,6 +86,8 @@ async fn change_secret(secrets: &Api<TestResource>) -> Result<String, Error> {
                     &test_resource(&KUBESECRET, &index, now_timestamp),
                 )
                 .await?;
+            let now_timestamp = MicroTime(Local::now().with_timezone(&Utc));
+            println!("DEBUG {:?}    doing changed secret {:?}", now_timestamp.0.to_string(),1);
         }
 
         Err(e) => panic!("{}", e),

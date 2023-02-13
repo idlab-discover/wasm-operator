@@ -1,0 +1,18 @@
+[package]
+name = "mongodbSpammer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mongodb = { version = "1.1.1", default-features = false, features = ["async-std-runtime"] }
+tokio = { version = "1.14.0",features = ["full"]}
+schemars = { version = "0.8.3", features = ["chrono"] }
+serde = { version = "1.0.111", features = ["derive"] }
+serde_json = "1.0.53"
+chrono = "0.4.10"
+snafu = "0.6.9"
+rand = "0.8.5"
+async-trait = "0.1.61"
+futures = "0.3.25"
