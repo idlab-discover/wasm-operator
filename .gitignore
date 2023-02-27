@@ -6,3 +6,6 @@ bin/
 __pycache__
 *.csv
 debug.txt
+grafana-operator/
+mariadb-operator/
+percona-server-mongodb-operator/
