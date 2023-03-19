@@ -20,6 +20,7 @@ pushd prediction/webserver
 
 
     if [ -f ".venv/bin/activate" ]; then
+    echo "new requirements generated"
         source .venv/bin/activate && pip3 freeze > requirements.txt 
     fi
     echo ">> Build the docker image flask server"

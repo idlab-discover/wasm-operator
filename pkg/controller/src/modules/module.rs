@@ -25,7 +25,7 @@ use tracing::debug;
 use serde::{Deserialize};
 use serde_json::json;
 
-const BUFFERLENGTH: usize = 10; // how long history of events to be saved
+const BUFFERLENGTH: usize = 50; // how long history of events to be saved
 const SHUTDOWNINACTIVEINTERVALMS: i64 = 500; // if inactive  for  x ms,  shut down
 const TIMEBEFOREPREDICTEDMs : i64  = 500; // load back in to memory when predicted time is close
 const GRACEPERIODMs : i64 =1000;
@@ -40,10 +40,6 @@ struct ServerResp{
 pub struct ControllerModule {
     wasm: WasmRuntime,
     ops_runner: Arc<Mutex<OpsRunner>>,
-    thread_spawned: bool,
-    tx: Sender<String>,
-    rx: Receiver<String>,
-    threadhandle: Option<JoinHandle<()>>,
     last_events: VecDeque<DateTime<Utc>>,
     apiserver: String,
     http_client: Client,
@@ -64,9 +60,6 @@ impl ControllerModule {
     pub(crate) fn new(wasm: WasmRuntime, ops_runner: Arc<Mutex<OpsRunner>>) -> Self {
         debug!("doing new");
 
-        let (tx, rx): (Sender<String>, Receiver<String>) = unbounded();
-        let thread_spawned = false;
-        let threadhandle = None;
         let mut last_events = VecDeque::with_capacity(BUFFERLENGTH);
         last_events.push_back(Utc::now() );
         let mut apiserver = env::var("PREDICTION_SERVER").unwrap_or("none".to_string());
@@ -78,10 +71,6 @@ impl ControllerModule {
         Self {
             wasm,
             ops_runner,
-            thread_spawned,
-            tx,
-            rx,
-            threadhandle,
             last_events,
             apiserver,
             http_client,
@@ -109,7 +98,7 @@ impl ControllerModule {
 
     pub fn poll_event_loop(&mut self, cx: &mut Context) -> Poll<anyhow::Result<()>> {
         // resolve async ops until wasm is busy or no ops can be resolved
-        debug!("doing poll event loop start");
+        //debug!("doing poll event loop start");
 
         while self.wasm.poll_unpin(cx)?.is_ready() && self.resolve_async_ops(cx)? {}
 
@@ -142,7 +131,7 @@ impl ControllerModule {
             //todo maybe do wakeup
             cx.waker().wake_by_ref();
         }
-        debug!("doing isinst {:?} current {:?} predicted {:?} since last {:?}", self.wasm.is_uninstantiating(),current_time, self.predicted_wakeup.prediction, *self.last_events.back().unwrap());
+        //debug!("doing isinst {:?} current {:?} predicted {:?} since last {:?}", self.wasm.is_uninstantiating(),current_time, self.predicted_wakeup.prediction, *self.last_events.back().unwrap());
 
         // check predicted time if available and  if predicted time  is close to current time, reload from  disk if it was unloaded
         if self.wasm.is_uninstantiating() && in_time_before_prediction_period(&current_time, &self.predicted_wakeup.prediction)
@@ -249,19 +238,25 @@ impl ControllerModule {
 
         // Retrieve async request results & start wasm again
         if let Some(result) = maybe_result {
-            
-            let now_timestamp = Utc::now();
-            self.add_event_time(now_timestamp);
-            // wakeup doesn't always  "wake up from disk"
-            self.wasm
-                .wakeup(result.async_request_id, result.value, result.finished)?;
 
-            let mut sleep = Box::pin(tokio::time::sleep(Durationtk::from_millis((SHUTDOWNINACTIVEINTERVALMS + 10) as u64)));
-            debugnextwakeup((SHUTDOWNINACTIVEINTERVALMS + 10));
-            sleep.poll_unpin(cx);
-            self.sleepvec.push(sleep);
-            
+            if result.finished {
+                let now_timestamp = Utc::now();
+                self.add_event_time(now_timestamp);
+                // wakeup doesn't always  "wake up from disk"
+                
+                let mut sleep = Box::pin(tokio::time::sleep(Durationtk::from_millis((SHUTDOWNINACTIVEINTERVALMS + 10) as u64)));
+                debugnextwakeup(SHUTDOWNINACTIVEINTERVALMS + 10);
+                sleep.poll_unpin(cx);
+                self.sleepvec.push(sleep);
+
+                debug!("there are {:?}  in qeue", self.last_events.len())
+                
+            }
+            // why wake up  when request  not  finished  like before? 
+            self.wasm
+                    .wakeup(result.async_request_id, result.value, result.finished)?;
             Ok(true)
+            
         } else {
             //debug!("doing not wakeup");
             Ok(false)
