@@ -97,6 +97,7 @@ popd
 echo ">> Deploy manifests"
 
 # Setup CRDs, Namespaces, RBAC rules
+kubectl apply -f ./tests/yaml/metricsServer.yaml
 kubectl apply -f ./tests/yaml/crd.yaml
 kubectl apply -f ./tests/yaml/namespace.yaml
 kubectl apply -f ./tests/yaml/rbac.yaml

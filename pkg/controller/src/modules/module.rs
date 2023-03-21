@@ -9,7 +9,6 @@ use futures::executor::block_on;
 use futures::future::poll_fn;
 use futures::StreamExt;
 use chrono::DateTime;
-use crossbeam_channel::{unbounded, Receiver, Sender};
 use reqwest::blocking::Client;
 use tokio::time::Sleep;
 use std::collections::VecDeque;
@@ -19,7 +18,6 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::task::Context;
 use std::task::Poll;
-use tokio::task::JoinHandle;
 use tokio::time::Duration as Durationtk;
 use tracing::debug;
 use serde::{Deserialize};
@@ -174,7 +172,7 @@ impl ControllerModule {
                     // wakup  before we think predicted is incoming (need min x duration before load is fisinished)
                     // TODO assume date is always in future
 
-                    let  mut nexttime = (self.predicted_wakeup.prediction - Utc::now()).num_milliseconds() - (TIMEBEFOREPREDICTEDMs/2) ;
+                    let  mut nexttime = (self.predicted_wakeup.prediction - Utc::now()).num_milliseconds() - TIMEBEFOREPREDICTEDMs ;
                     // make it positive but maybe throw  error if neg  instead or do new prediction
                     nexttime = nexttime.abs();
 
