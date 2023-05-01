@@ -18,7 +18,7 @@ run=1
 nritters=100
 
 export COMPILE_WITH_UNINSTANTIATE="TRUE"
-export HEAP_MEM_SIZE=0
+export HEAP_MEM_SIZE=90000000
 export RUST_BACKTRACE=1
 ./devel/create_cluster.sh
 ./devel/setup_flask_server.sh

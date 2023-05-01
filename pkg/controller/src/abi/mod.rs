@@ -43,6 +43,9 @@ where
         .call(&mut store, allocation_size)
 }
 
+// TODO maybe make abi  for memory loading ??
+
+
 pub(crate) async fn wakeup<S>(
     mut store: S,
     instance: &Instance,
@@ -54,6 +57,7 @@ where
     S: AsContextMut,
     S::Data: Send,
 {
+   // allocates the  memory of a request
     let (memory_location_ptr, memory_location_size) = match value {
         None => (std::ptr::null::<*const u32>() as u32, 0),
         Some(event) => {
@@ -71,6 +75,8 @@ where
     };
 
     let wakeup_fn = instance.get_typed_func::<(u64, u32, u32, u32), (), _>(&mut store, "wakeup")?;
+
+    //println!("wakeup  abi memloc {:?} and size {:?}",memory_location_ptr, memory_location_size);
 
     wakeup_fn
         .call(

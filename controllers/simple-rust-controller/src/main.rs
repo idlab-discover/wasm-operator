@@ -17,6 +17,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tracing::debug;
 use tracing::info;
+use std::mem;
 
 
 
@@ -55,7 +56,7 @@ fn error_policy(_error: &Error, _ctx: Context<Data>) -> Action {
 struct Data {
     client: Client,
     //out_namespace: String,
-    //huge_mem_alloc: Arc<Vec<u8>>,
+    huge_mem_alloc: Arc<Vec<u8>>,
 }
 
 
@@ -90,6 +91,27 @@ async fn main_async() {
         .expect("could not create kube client");
 
     let in_resources: Api<TestResource> = Api::namespaced(client.clone(), "default");
+
+
+    //
+
+
+
+    let heap_mem_size = env::var("HEAP_MEM_SIZE").unwrap_or("0".to_string());
+    let heap_mem_size = heap_mem_size.parse::<usize>().unwrap();
+
+
+
+    //make big memory
+    let mut huge_mem_alloc = Vec::with_capacity(heap_mem_size);
+    for i in 0..heap_mem_size {
+        huge_mem_alloc.push((i + 9 % 256) as u8);
+    }
+   
+    println!("size of  vector  is {}", mem::size_of_val(&*huge_mem_alloc));
+    let huge_mem_alloc = Arc::new(huge_mem_alloc);
+
+    
     
     Controller::new(
         in_resources,
@@ -104,7 +126,7 @@ async fn main_async() {
        Context::new(Data {
          client,
         //    out_namespace,
-         //   huge_mem_alloc,
+           huge_mem_alloc,
         }),
     )
     .for_each(|res| async move {
@@ -136,9 +158,9 @@ async fn reconcile(
     match resource.get(KUBESECRET).await {
         Ok(mut existing) => {
 
-            
+            let size  =  ctx.get_ref().huge_mem_alloc.len();
            
-            println!("{:?}    child node reconsile changed secret on {:?} to {:?}", now_timestamp.0.to_string(),existing.spec.nonce -1,existing.spec.nonce );
+            println!("{:?}    child node reconsile changed secret on {:?} to {:?}  with  {:?} byte buffer", now_timestamp.0.to_string(),existing.spec.nonce -1,existing.spec.nonce,size );
         }
         Err(kube::Error::Api(ae)) if ae.code == 404 => {
             println!("No testresource, made new one");
