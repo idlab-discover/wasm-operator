@@ -147,7 +147,7 @@ impl WasmRuntime {
                 
                 debug!("uninstantiate start");
                 
-                let now = Instant::now();
+                //let now = Instant::now();
 
                 let mem = instance.get_memory(&mut store, "memory").unwrap();
                 //  write  all memoery into file
@@ -182,8 +182,8 @@ impl WasmRuntime {
                 lock.set(MaybeInst::UnsInst(store.into_data(), snapshot));
 
                 drop(permit);
-                let elapsed = now.elapsed().as_secs_f64();
-                debug!("uninstantiate time inside is {:.10} ",elapsed);
+                //let elapsed = now.elapsed().as_secs_f64();
+                //debug!("uninstantiate time inside is {:.10} ",elapsed);
             }
 
             Ok(())
@@ -261,7 +261,7 @@ impl WasmRuntime {
 
 
                 debug!("in waking  up  and  loading into mem in wakeup  func, should not happen");
-                let now = Instant::now();
+                //let now = Instant::now();
 
                 let permit = async_active_client_counter_clone.acquire_owned().await?;
 
@@ -305,8 +305,8 @@ impl WasmRuntime {
                     instance,
                 ));
 
-                let elapsed = now.elapsed().as_secs_f64();
-                debug!("wakup time inside is {:.10} ",elapsed);
+                //let elapsed = now.elapsed().as_secs_f64();
+                //debug!("wakup time inside is {:.10} ",elapsed);
             }
             else {
                 debug!("we woke  up without having to reload from disk yeyye  with  lock  {:?}",lock)
@@ -346,7 +346,7 @@ impl WasmRuntime {
             if let MaybeInst::UnsInst(context, snapshot) = lock.take_uns() {
 
                 debug!("in load and loading into memory pre emptive good");
-                let now = Instant::now();
+                //let now = Instant::now();
 
                 let permit = async_active_client_counter_clone.acquire_owned().await?;
 
@@ -395,8 +395,8 @@ impl WasmRuntime {
                     instance,
                 ));
 
-                let elapsed = now.elapsed().as_secs_f64();
-                debug!("load to mem time inside is {:.10} ",elapsed);
+                //let elapsed = now.elapsed().as_secs_f64();
+                //debug!("load to mem time inside is {:.10} ",elapsed);
             
             }
             

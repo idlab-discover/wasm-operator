@@ -42,6 +42,7 @@ pub struct ControllerModule {
     http_client: Client,
     predicted_wakeup: ServerResp,
     sleepvec: Vec<Pin<Box<Sleep>>>,
+    failed_prediction: bool
 }
 
 
@@ -65,6 +66,7 @@ impl ControllerModule {
         let http_client = reqwest::blocking::Client::new();
         let predicted_wakeup = ServerResp { prediction: Utc::now() + Duration::days(999) };
         let sleepvec = vec![];
+        let failed_prediction  = false;
         Self {
             wasm,
             ops_runner,
@@ -72,7 +74,8 @@ impl ControllerModule {
             apiserver,
             http_client,
             predicted_wakeup,
-            sleepvec
+            sleepvec,
+            failed_prediction
         }
     }
 
@@ -125,6 +128,7 @@ impl ControllerModule {
             // something is wrong, we current time is past  predicted time, deadline missed
             debug!("doing predicted time is in past, reset");
             self.predicted_wakeup  = ServerResp { prediction :   current_time + Duration::days(999) };
+            self.failed_prediction = true;
             //todo maybe do wakeup
             cx.waker().wake_by_ref();
         }
@@ -159,42 +163,43 @@ impl ControllerModule {
 
         {
             debug!("doing uninstatniate");
-
-        
             self.wasm.uninstantiate();
-            
-           
 
             //debug!("doing uninstatniate done ");
             // call a API here given event history and wake it up  in time before  message comes in
             cx.waker().wake_by_ref();
 
-            let body = json!({ "history": self.last_events ,  "function": "autoReg"});
-
-            match self.http_client.post(self.apiserver.clone()).json(&body)
-            .send() {
-                Ok(resp) => {
-                    
-                    self.predicted_wakeup = resp.json().unwrap();
-                    debug!("doing predicted time is {:?}", self.predicted_wakeup  );
-                    
-                    // wakup  before we think predicted is incoming (need min x duration before load is fisinished)
-                    // TODO assume date is always in future
-
-                    let  mut nexttime = (self.predicted_wakeup.prediction - Utc::now()).num_milliseconds() - TIMEBEFOREPREDICTEDMS ;
-                    // make it positive but maybe throw  error if neg  instead or do new prediction
-                    nexttime = nexttime.abs();
-
-
-                    let mut sleep = Box::pin(tokio::time::sleep(Durationtk::from_millis(nexttime as u64)));
-                    debugnextwakeup(nexttime);
-                    sleep.poll_unpin(cx);
-                    self.sleepvec.push(sleep);
-
+            if !self.failed_prediction{
+                self.failed_prediction = true;
+                let body = json!({ "history": self.last_events ,  "function": "autoReg"});
+                match self.http_client.post(self.apiserver.clone()).json(&body)
+                .send() {
+                    Ok(resp) => {
+                        
+                        self.predicted_wakeup = resp.json().unwrap();
+                        debug!("doing predicted time is {:?}", self.predicted_wakeup  );
+                        
+                        // wakup  before we think predicted is incoming (need min x duration before load is fisinished)
+                        // TODO assume date is always in future
+    
+                        let  mut nexttime = (self.predicted_wakeup.prediction - Utc::now()).num_milliseconds() - TIMEBEFOREPREDICTEDMS ;
+                        // make it positive but maybe throw  error if neg  instead or do new prediction
+                        nexttime = nexttime.abs();
+    
+    
+                        let mut sleep = Box::pin(tokio::time::sleep(Durationtk::from_millis(nexttime as u64)));
+                        debugnextwakeup(nexttime);
+                        sleep.poll_unpin(cx);
+                        self.sleepvec.push(sleep);
+    
+                    }
+                    Err(e) => {
+                        debug!("doing error {:?}", e)
+                    }
                 }
-                Err(e) => {
-                    debug!("doing error {:?}", e)
-                }
+            }
+            else{
+                debug!("don't predict next loop since last one failed");
             }
 
         }
@@ -247,6 +252,9 @@ impl ControllerModule {
         if let Some(result) = maybe_result {
 
             if result.finished {
+                //reset failed  prediction
+                self.failed_prediction = false;
+
                 let now_timestamp = Utc::now();
                 self.add_event_time(now_timestamp);
                 // wakeup doesn't always  "wake up from disk"
