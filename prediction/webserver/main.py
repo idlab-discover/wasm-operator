@@ -107,7 +107,7 @@ def predict():
     now = lastEvent
     now += timedelta(seconds=prediction)
     now = dateToRust(now)
-    print(f"prediction is  {prediction}",flush=True)
+    print(f"prediction is  {prediction} with {diff}",flush=True)
     #print(f"hist {history}",flush=True)
     #print(f"diff {diff}",flush=True)
     

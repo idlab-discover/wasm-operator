@@ -18,7 +18,7 @@ cd "${SCRIPT_ROOT}/.."
 NR_CONTROLLERS=$1
 
 
-export RUST_BACKTRACE=1
+#export RUST_BACKTRACE=1
 export COMPILE_WITH_UNINSTANTIATE="TRUE"
 #export COMPILE_WITH_UNINSTANTIATE="FALSE"
 export RUSTFLAGS="-g"
@@ -69,7 +69,10 @@ pushd tests/wasm_rust_simple
     cp ../../pkg/controller/target/x86_64-unknown-linux-musl/release/controller ./temp/
     #cp ../../pkg/controller/target/x86_64-unknown-linux-musl/debug/controller ./temp/
     cp ../../controllers/simple-rust-controller/bin_wasm/*.wasm ./temp/
-    generate_wasm_yaml_file_simple  > ./temp/wasm_config.yaml
+    
+    
+    
+    generate_wasm_yaml_file_simple > ./temp/wasm_config.yaml
 
     # Build the docker image
     echo ">> Build the docker image"

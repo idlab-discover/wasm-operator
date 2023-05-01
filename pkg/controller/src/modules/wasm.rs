@@ -13,6 +13,11 @@ use tracing::Instrument;
 use wasmtime::{Instance, Module, Store};
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
+use tracing::debug;
+use std::time::Instant;
+
+
+
 
 const WASM_PAGE_SIZE: u64 = 0x10000;
 
@@ -116,14 +121,11 @@ impl WasmRuntime {
     ) -> Self {
         Self {
             inner: Arc::new(AsyncMutex::new(MaybeInst::NotInst(controller_ctx))),
-
             wasm_work: None,
             uninstantiating: true,
-
             wasm_path,
             swap_path,
             environment,
-
             async_active_client_counter,
         }
     }
@@ -142,7 +144,13 @@ impl WasmRuntime {
             let mut lock = arc.lock().await;
             // check if wasm module is in memmory,  if so  cache it (should always be the case?)
             if let MaybeInst::GotInst(mut store, permit, instance) = lock.take_got() { 
+                
+                debug!("uninstantiate start");
+                
+                let now = Instant::now();
+
                 let mem = instance.get_memory(&mut store, "memory").unwrap();
+                //  write  all memoery into file
                 tokio::fs::write(&swap_path, mem.data(&mut store)).await?;
 
                 let mut globals: Vec<(String, wasmtime::Global)> = instance
@@ -174,6 +182,8 @@ impl WasmRuntime {
                 lock.set(MaybeInst::UnsInst(store.into_data(), snapshot));
 
                 drop(permit);
+                let elapsed = now.elapsed().as_secs_f64();
+                debug!("uninstantiate time inside is {:.10} ",elapsed);
             }
 
             Ok(())
@@ -248,6 +258,11 @@ impl WasmRuntime {
             let mut lock = arc.lock().await;
             // check if wasm is uninitialised, i.e. loaded to  disk, in that case load it back to memory
             if let MaybeInst::UnsInst(context, snapshot) = lock.take_uns() {
+
+
+                debug!("in waking  up  and  loading into mem in wakeup  func, should not happen");
+                let now = Instant::now();
+
                 let permit = async_active_client_counter_clone.acquire_owned().await?;
 
                 let module = unsafe { Module::deserialize_file(&environment.engine, &wasm_path)? };
@@ -273,7 +288,7 @@ impl WasmRuntime {
 
                     mem.grow(&mut store, n_pages)?;
                 }
-
+                // loads the disk into memory
                 let read = f.read_exact(mem.data_mut(&mut store)).await?;
                 assert_eq!(read, snapshot.memory_min);
 
@@ -289,6 +304,12 @@ impl WasmRuntime {
                     permit,
                     instance,
                 ));
+
+                let elapsed = now.elapsed().as_secs_f64();
+                debug!("wakup time inside is {:.10} ",elapsed);
+            }
+            else {
+                debug!("we woke  up without having to reload from disk yeyye  with  lock  {:?}",lock)
             }
 
             let (store, instance) = match &mut *lock {
@@ -323,6 +344,10 @@ impl WasmRuntime {
             let mut lock = arc.lock().await;
             // check if wasm is uninitialised, i.e. loaded to  disk, in that case load it back to memory
             if let MaybeInst::UnsInst(context, snapshot) = lock.take_uns() {
+
+                debug!("in load and loading into memory pre emptive good");
+                let now = Instant::now();
+
                 let permit = async_active_client_counter_clone.acquire_owned().await?;
 
                 let module = unsafe { Module::deserialize_file(&environment.engine, &wasm_path)? };
@@ -349,7 +374,12 @@ impl WasmRuntime {
                     mem.grow(&mut store, n_pages)?;
                 }
 
+                
+                debug!("loadin {:?} bytes into memory good",f.metadata().await?.len());
+                // load disk into memory
                 let read = f.read_exact(mem.data_mut(&mut store)).await?;
+                debug!("done loading {:?} bytes into memory good",mem.data_mut(&mut store).len());
+
                 assert_eq!(read, snapshot.memory_min);
 
                 for (name, global) in snapshot.globals.iter() {
@@ -364,7 +394,12 @@ impl WasmRuntime {
                     permit,
                     instance,
                 ));
+
+                let elapsed = now.elapsed().as_secs_f64();
+                debug!("load to mem time inside is {:.10} ",elapsed);
+            
             }
+            
 
             let (store, instance) = match &mut *lock {
                 MaybeInst::GotInst(store, _, instance) => (store, instance),

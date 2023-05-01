@@ -4,13 +4,15 @@ set -o nounset
 set -o pipefail
 
 generate_wasm_yaml_file_simple() {
-
+  
   cat << EOF
 name: "simplecontroller"
 wasm: ./simple-pod-example.wasm
 env:
 - name: RUST_LOG
   value: "info"
+- name: HEAP_MEM_SIZE
+  value: "$HEAP_MEM_SIZE"
 
 EOF
 
@@ -124,6 +126,12 @@ spec:
       value: "info"
     - name: PREDICTION_SERVER
       value: "${SERVER}"
+    resources:
+      requests:
+        memory: "640Mi"
+      limits:
+        memory: "1280Mi"
+  
 EOF
 
 }
