@@ -143,8 +143,9 @@ async fn reconcile(
     resource: Arc<TestResource>,
     ctx: Context<Data>,
 ) -> Result<Action, Error> {
+    let now_timestamp = MicroTime(Local::now().with_timezone(&Utc));
 
-    println!("reconcile called");
+    println!("{:?}  reconcile called",now_timestamp.0.to_string());
 
     let client = ctx.get_ref().client.clone();
     //or use provided resource in arc
@@ -173,7 +174,7 @@ async fn reconcile(
                 .await?;
         }
 
-        Err(e) => panic!("{}", e),
+        Err(e) => println!("getting resource {:?}", e),
     }
 
     Ok(Action::await_change())

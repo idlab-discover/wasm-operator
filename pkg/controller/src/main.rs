@@ -58,7 +58,7 @@ fn main() {
         .expect("Cannot load the modules from the provided dir");
 
     runtime.block_on(async {
-        let (runtime_command_sender, runtime_command_receiver) = tokio::sync::mpsc::channel(3);
+        let (runtime_command_sender, runtime_command_receiver) = tokio::sync::mpsc::channel(10);
 
         tokio::spawn(runtime::start(
             runtime_command_receiver,

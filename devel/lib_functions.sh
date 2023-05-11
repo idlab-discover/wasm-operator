@@ -5,6 +5,10 @@ set -o pipefail
 
 generate_wasm_yaml_file_simple() {
   
+
+  
+
+
   cat << EOF
 name: "simplecontroller"
 wasm: ./simple-pod-example.wasm
@@ -13,7 +17,7 @@ env:
   value: "info"
 - name: HEAP_MEM_SIZE
   value: "$HEAP_MEM_SIZE"
-
+---
 EOF
 
 

@@ -4,6 +4,7 @@ use crate::runtime::COMPILE_WITH_UNINSTANCIATE;
 use chrono::Duration;
 use chrono::Utc;
 use futures::FutureExt;
+use futures::TryStreamExt;
 use futures::future::poll_fn;
 use futures::StreamExt;
 use chrono::DateTime;
@@ -23,9 +24,9 @@ use serde_json::json;
 use std::time::Instant;
 
 const BUFFERLENGTH: usize = 50; // how long history of events to be saved
-const SHUTDOWNINACTIVEINTERVALMS: i64 = 1000; // if inactive  for  x ms,  shut down
-const TIMEBEFOREPREDICTEDMS : i64  = 500; // load back in to memory when predicted time is close
-const GRACEPERIODMS : i64 =500;
+const SHUTDOWNINACTIVEINTERVALMS: i64 = 4000; // if inactive  for  x ms,  shut down
+const TIMEBEFOREPREDICTEDMS : i64  = 1000; // load back in to memory when predicted time is close
+const GRACEPERIODMS : i64 =1000;
 
 
 #[derive(Deserialize,Debug)]
@@ -42,7 +43,8 @@ pub struct ControllerModule {
     http_client: Client,
     predicted_wakeup: ServerResp,
     sleepvec: Vec<Pin<Box<Sleep>>>,
-    failed_prediction: bool
+    failed_prediction: bool,
+    first_event_after_shutdown : bool
 }
 
 
@@ -54,6 +56,9 @@ pub struct ControllerModule {
 //                                                                       we  hope predicted is  right and an event is made here                                                                                
 
 // How polling works https://fasterthanli.me/articles/pin-and-suffering
+// we do cx.waker().wake_by_ref();  to wake up  the poll, and  importantly wake  up wasm  work when we  set it, always  do  a wake after it!
+
+
 impl ControllerModule {
     pub(crate) fn new(wasm: WasmRuntime, ops_runner: Arc<Mutex<OpsRunner>>) -> Self {
         debug!("doing new");
@@ -67,6 +72,8 @@ impl ControllerModule {
         let predicted_wakeup = ServerResp { prediction: Utc::now() + Duration::days(999) };
         let sleepvec = vec![];
         let failed_prediction  = false;
+        let lastevent_id = 0;
+        let first_event_after_shutdown = true;
         Self {
             wasm,
             ops_runner,
@@ -75,7 +82,8 @@ impl ControllerModule {
             http_client,
             predicted_wakeup,
             sleepvec,
-            failed_prediction
+            failed_prediction,
+            first_event_after_shutdown
         }
     }
 
@@ -109,10 +117,13 @@ impl ControllerModule {
         // WASM is not running, so the lock will not delay a new op from being added using 'handle_request'
         let runner = self.ops_runner.lock().unwrap();
 
+        
+
         // will be be executed when all instructions are over, but for operators  this is probably never
         if !(!runner.pending_ops.is_empty()) {
-            debug!("doing poll ready");
+            debug!("doing poll ready  should not happen...");
             // TODO what happends to the wakups still in the sleep list when context is ready
+            //cx.waker().wake_by_ref();
             return Poll::Ready(Ok(()));
         }
 
@@ -124,11 +135,14 @@ impl ControllerModule {
 
         let current_time = Utc::now();
 
+       // debug!("in time before pred? {:?} and  curr {:?} ",  in_time_before_prediction_period(&current_time, &self.predicted_wakeup.prediction),current_time);
+
+
         if  current_time.signed_duration_since(self.predicted_wakeup.prediction).num_milliseconds() > 0 && ! in_time_grace_period(&current_time, &self.predicted_wakeup.prediction) {
             // something is wrong, we current time is past  predicted time, deadline missed
-            debug!("doing predicted time is in past, reset");
+            //debug!("doing predicted time is in past, reset");
             self.predicted_wakeup  = ServerResp { prediction :   current_time + Duration::days(999) };
-            self.failed_prediction = true;
+            
             //todo maybe do wakeup
             cx.waker().wake_by_ref();
         }
@@ -138,10 +152,10 @@ impl ControllerModule {
         if self.wasm.is_uninstantiating() && in_time_before_prediction_period(&current_time, &self.predicted_wakeup.prediction)
          {
 
-            debug!("doing load in memory");
-           
-
+            debug!("doing signal  load in memory");
             self.wasm.load_to_mem();
+            
+            cx.waker().wake_by_ref();
            
 
             //wake up  again  after graceperiod todo better calculation than grace+timebefore for  quicker
@@ -162,16 +176,18 @@ impl ControllerModule {
             && ! in_time_grace_period(&current_time, &self.predicted_wakeup.prediction)
 
         {
-            debug!("doing uninstatniate");
+            debug!("doing signal uninstatniate");
             self.wasm.uninstantiate();
+            
 
             //debug!("doing uninstatniate done ");
             // call a API here given event history and wake it up  in time before  message comes in
             cx.waker().wake_by_ref();
 
-            if !self.failed_prediction{
-                self.failed_prediction = true;
-                let body = json!({ "history": self.last_events ,  "function": "autoReg"});
+            //if no async funnc was  called,  then  we  no  the prediction failed and  we  dont do another predition since this  will give same  date...
+            if !self.first_event_after_shutdown{
+                
+                let body = json!({ "history": self.last_events ,  "function": "SES"});
                 match self.http_client.post(self.apiserver.clone()).json(&body)
                 .send() {
                     Ok(resp) => {
@@ -180,9 +196,9 @@ impl ControllerModule {
                         debug!("doing predicted time is {:?}", self.predicted_wakeup  );
                         
                         // wakup  before we think predicted is incoming (need min x duration before load is fisinished)
-                        // TODO assume date is always in future
+                        // TODO assume date is always in future add  15 secs
     
-                        let  mut nexttime = (self.predicted_wakeup.prediction - Utc::now()).num_milliseconds() - TIMEBEFOREPREDICTEDMS ;
+                        let  mut nexttime = (self.predicted_wakeup.prediction - Utc::now()).num_milliseconds() - TIMEBEFOREPREDICTEDMS+ 5 ;
                         // make it positive but maybe throw  error if neg  instead or do new prediction
                         nexttime = nexttime.abs();
     
@@ -201,6 +217,7 @@ impl ControllerModule {
             else{
                 debug!("don't predict next loop since last one failed");
             }
+            self.first_event_after_shutdown = true;
 
         }
 
@@ -219,7 +236,7 @@ impl ControllerModule {
         let maybe_result = {
             // WASM is not running, so the lock will not delay a new op from being added using 'handle_request'
             let mut runner = self.ops_runner.lock().unwrap();
-            //debug!("doing resolve async nr calls : {:?}", runner.nr_web_calls);
+            //debug!("doing resolve async nr calls : {:?}  and  unpolled {:?} is  active {:?}", runner.nr_web_calls,runner.have_unpolled_ops,!self.wasm.is_uninstantiating());
 
             runner.have_unpolled_ops = false;
 
@@ -234,7 +251,15 @@ impl ControllerModule {
                 }
 
                 if let Poll::Ready(Some(Err(err))) = poll_result {
-                    debug!("found error {:?}", err);
+
+                    //should never happen
+                    debug!("found error  in a request should not happen {:?}", err);
+                    runner.nr_web_calls -= 0;
+
+                    debug!("just  return none");
+                    //runner.async_result_rx.poll_recv(cx);
+                    //runner.pending_ops.try_poll_next_unpin(cx);
+                    //break None;
                     return Err(err);
                 }
 
@@ -250,8 +275,13 @@ impl ControllerModule {
 
         // Retrieve async request results & start wasm again
         if let Some(result) = maybe_result {
-
-            if result.finished {
+            
+            
+            // use  wakeup timings instead of requests
+            if self.first_event_after_shutdown {
+                self.first_event_after_shutdown = false;
+                let now_timestamp = Utc::now();
+                debug!("added wakeup time {:?}",now_timestamp);
                 //reset failed  prediction
                 self.failed_prediction = false;
 
@@ -264,12 +294,10 @@ impl ControllerModule {
                 sleep.poll_unpin(cx);
                 self.sleepvec.push(sleep);
 
-                //debug!("there are {:?}  in qeue", self.last_events.len())
-                
             }
             // why wake up  when request  not  finished  like before? 
 
-            debug!("async  request waking up is  there active {:?} ", !self.wasm.is_uninstantiating());
+           // debug!("async  request waking up is  there active {:?} with id {:?} and finished  {:?} ", !self.wasm.is_uninstantiating(), result.async_request_id,result.finished);
             
             self.wasm
                     .wakeup(result.async_request_id, result.value, result.finished)?;
@@ -277,7 +305,7 @@ impl ControllerModule {
             Ok(true)
             
         } else {
-            //debug!("doing not wakeup");
+            debug!("doing false resolve async");
             Ok(false)
         }
     }
@@ -287,6 +315,7 @@ impl ControllerModule {
             self.last_events.pop_front();
         }
         self.last_events.push_back(time);
+        debug!("added event time {:?}",time);
     }
 }
 

@@ -15,7 +15,7 @@ use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use tracing::debug;
 use std::time::Instant;
-
+use std::mem;
 
 
 
@@ -147,12 +147,19 @@ impl WasmRuntime {
                 
                 debug!("uninstantiate start");
                 
-                //let now = Instant::now();
+                let now = Instant::now();
+                // TODO  bug  hier in  memory is  used  2* 90Mb if  operator  is  90mb
+
 
                 let mem = instance.get_memory(&mut store, "memory").unwrap();
                 //  write  all memoery into file
-                tokio::fs::write(&swap_path, mem.data(&mut store)).await?;
 
+                
+                //std::fs::write(&swap_path, mem.data(&store)).unwrap();
+                //this write  causes double memory usage of an  operator
+                tokio::fs::write(&swap_path, mem.data(&store)).await?;
+                
+                
                 let mut globals: Vec<(String, wasmtime::Global)> = instance
                     .exports(&mut store)
                     .filter_map(|exp| {
@@ -162,28 +169,32 @@ impl WasmRuntime {
                     })
                     .collect();
 
+                //debug!("size 1 is {:?}",mem::size_of_val(&globals));
+
                 globals = globals
                     .into_iter()
                     .filter(|(_, glob)| {
                         glob.ty(&mut store).mutability() == wasmtime::Mutability::Var
                     })
                     .collect();
+                
 
                 let global_vals = globals
                     .into_iter()
                     .map(|(name, glob)| (name, glob.get(&mut store)))
                     .collect();
-
+            
                 let snapshot = Snapshot {
                     globals: global_vals,
                     memory_min: mem.data_size(&mut store),
                 };
 
-                lock.set(MaybeInst::UnsInst(store.into_data(), snapshot));
+                // does  this cause the  90Mb spike?
+                lock.set(MaybeInst::UnsInst( store.into_data(), snapshot));
 
                 drop(permit);
-                //let elapsed = now.elapsed().as_secs_f64();
-                //debug!("uninstantiate time inside is {:.10} ",elapsed);
+                let elapsed = now.elapsed().as_secs_f64();
+                debug!("uninstantiate time inside is {:.10} ",elapsed);
             }
 
             Ok(())
@@ -261,7 +272,7 @@ impl WasmRuntime {
 
 
                 debug!("in waking  up  and  loading into mem in wakeup  func, should not happen");
-                //let now = Instant::now();
+                let now = Instant::now();
 
                 let permit = async_active_client_counter_clone.acquire_owned().await?;
 
@@ -305,8 +316,8 @@ impl WasmRuntime {
                     instance,
                 ));
 
-                //let elapsed = now.elapsed().as_secs_f64();
-                //debug!("wakup time inside is {:.10} ",elapsed);
+                let elapsed = now.elapsed().as_secs_f64();
+                debug!("wakup time inside is {:.10} ",elapsed);
             }
             else {
                 debug!("we woke  up without having to reload from disk yeyye  with  lock  {:?}",lock)
@@ -333,20 +344,25 @@ impl WasmRuntime {
     pub(crate) fn load_to_mem(
         &mut self,
     )  {
+        
         assert!(self.wasm_work.is_none());
         let arc = self.inner.clone();
         let environment = self.environment.clone();
         let swap_path = self.swap_path.clone();
         let wasm_path = self.wasm_path.clone();
         let async_active_client_counter_clone = self.async_active_client_counter.clone();
+        
 
         let fut = async move {
+           
             let mut lock = arc.lock().await;
+            
+
             // check if wasm is uninitialised, i.e. loaded to  disk, in that case load it back to memory
             if let MaybeInst::UnsInst(context, snapshot) = lock.take_uns() {
 
                 debug!("in load and loading into memory pre emptive good");
-                //let now = Instant::now();
+                let now = Instant::now();
 
                 let permit = async_active_client_counter_clone.acquire_owned().await?;
 
@@ -374,14 +390,12 @@ impl WasmRuntime {
                     mem.grow(&mut store, n_pages)?;
                 }
 
-                
                 debug!("loadin {:?} bytes into memory good",f.metadata().await?.len());
                 // load disk into memory
                 let read = f.read_exact(mem.data_mut(&mut store)).await?;
                 debug!("done loading {:?} bytes into memory good",mem.data_mut(&mut store).len());
 
                 assert_eq!(read, snapshot.memory_min);
-
                 for (name, global) in snapshot.globals.iter() {
                     instance
                         .get_global(&mut store, name)
@@ -395,11 +409,9 @@ impl WasmRuntime {
                     instance,
                 ));
 
-                //let elapsed = now.elapsed().as_secs_f64();
-                //debug!("load to mem time inside is {:.10} ",elapsed);
-            
+                let elapsed = now.elapsed().as_secs_f64();
+                debug!("load to mem time inside is {:.10} ",elapsed);
             }
-            
 
             let (store, instance) = match &mut *lock {
                 MaybeInst::GotInst(store, _, instance) => (store, instance),
@@ -412,7 +424,6 @@ impl WasmRuntime {
 
         self.set_wasm_work(fut, "load_to_mem");
         self.uninstantiating = false;
-
         
     }
 

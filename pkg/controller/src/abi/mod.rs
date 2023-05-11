@@ -76,7 +76,7 @@ where
 
     let wakeup_fn = instance.get_typed_func::<(u64, u32, u32, u32), (), _>(&mut store, "wakeup")?;
 
-    //println!("wakeup  abi memloc {:?} and size {:?}",memory_location_ptr, memory_location_size);
+    
 
     wakeup_fn
         .call(
@@ -107,6 +107,8 @@ fn abi_request(mut caller: Caller<'_, ControllerCtx>, ptr: u32, size: u32, strea
     };
 
     let controller_ctx = caller.data_mut();
+
+    
 
     let async_request_id = controller_ctx
         .async_request_id_counter

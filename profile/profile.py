@@ -3,6 +3,7 @@ import os
 import time
 import datetime
 from pathlib import Path
+from datetime import datetime
 
 def h(x):
     """Translates a number of bytes to a human-readable string."""
@@ -144,6 +145,7 @@ def total_cgroupv2_usage(processes, pause_processes, shim_processes):
     # all containerd-releated processes run in the same cgroup (so only account once)
     containerd_mem = process_cgroup_mem_current(shim_process["cgroup_dir"])
     containerd_pressure = process_cgroup_pressure(shim_process["cgroup_dir"])
+    #containerd_pressure = 0
 
     return {
         "app_mem": main_cgroup_mem_current,
@@ -259,20 +261,21 @@ class Modulator:
 
         self.app_limit = self.clean_limit(self.app_limit)
         mem_max_per_pod = int(self.app_limit / nr_pods) + 1
-        update_memory_pressure(self.app_processes, mem_max_per_pod)
+       # update_memory_pressure(self.app_processes, mem_max_per_pod)
 
         self.containerd_limit = int(self.clean_limit(self.containerd_limit)) + 1
-        update_memory_pressure({k: v for k,v in [next(iter(self.shim_processes.items()))]}, self.containerd_limit)
-
+        #update_memory_pressure({k: v for k,v in [next(iter(self.shim_processes.items()))]}, self.containerd_limit)
+        curtime  = datetime.now().strftime('%H:%M:%S')
         print(
+            f'{curtime}s'+
             f'app_delta: {self.app_delta / 1000:.3f}ms\t' +
             f'app_mem: {h(self.app_mem)}\t' +
             f'app_max: {h(self.app_limit)}\t' +
             f'app_max_per_pod: {h(mem_max_per_pod)}\t' +
-            f'containerd_delta: {self.containerd_delta / 1000:.3f}ms\t' +
-            f'containerd_mem: {h(self.containerd_mem)}\t' +
-            f'containerd_max: {h(self.containerd_limit)}\t' +
-            f'pause_mem: {h(self.pause_mem)}\t' +
+            #f'containerd_delta: {self.containerd_delta / 1000:.3f}ms\t' +
+            #f'containerd_mem: {h(self.containerd_mem)}\t' +
+            #f'containerd_max: {h(self.containerd_limit)}\t' +
+            #f'pause_mem: {h(self.pause_mem)}\t' +
             f'counter: {self.counter}'
         )
 
@@ -330,6 +333,6 @@ if __name__ == "__main__":
         app_mem, app_limit, containerd_mem, containerd_limit, pause_mem = modulator.update_max()
 
         with open(output_file, 'a') as file_object:
-            file_object.write(f'{time.time()};{app_mem};{app_limit};{containerd_mem};{containerd_limit};{pause_mem}\n'.replace(".", ","))
+            file_object.write(f'{datetime.now()};{app_mem};{app_limit};{containerd_mem};{containerd_limit};{pause_mem}\n'.replace(".", ","))
 
-        time.sleep(1)
+        time.sleep(0.1)
