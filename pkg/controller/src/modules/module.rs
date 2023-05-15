@@ -24,7 +24,7 @@ use serde_json::json;
 use std::time::Instant;
 
 const BUFFERLENGTH: usize = 50; // how long history of events to be saved
-const SHUTDOWNINACTIVEINTERVALMS: i64 = 4000; // if inactive  for  x ms,  shut down
+const SHUTDOWNINACTIVEINTERVALMS: i64 = 1000; // if inactive  for  x ms,  shut down
 const TIMEBEFOREPREDICTEDMS : i64  = 1000; // load back in to memory when predicted time is close
 const GRACEPERIODMS : i64 =1000;
 
@@ -38,12 +38,12 @@ struct ServerResp{
 pub struct ControllerModule {
     wasm: WasmRuntime,
     ops_runner: Arc<Mutex<OpsRunner>>,
+    last_event_time: DateTime<Utc>,
     last_events: VecDeque<DateTime<Utc>>,
     apiserver: String,
     http_client: Client,
     predicted_wakeup: ServerResp,
     sleepvec: Vec<Pin<Box<Sleep>>>,
-    failed_prediction: bool,
     first_event_after_shutdown : bool
 }
 
@@ -64,6 +64,7 @@ impl ControllerModule {
         debug!("doing new");
 
         let mut last_events = VecDeque::with_capacity(BUFFERLENGTH);
+        let last_event_time = Utc::now();
         last_events.push_back(Utc::now() );
         let mut apiserver = env::var("PREDICTION_SERVER").unwrap_or("none".to_string());
         apiserver.push_str(&"prediction");
@@ -71,7 +72,6 @@ impl ControllerModule {
         let http_client = reqwest::blocking::Client::new();
         let predicted_wakeup = ServerResp { prediction: Utc::now() + Duration::days(999) };
         let sleepvec = vec![];
-        let failed_prediction  = false;
         let lastevent_id = 0;
         let first_event_after_shutdown = true;
         Self {
@@ -82,8 +82,8 @@ impl ControllerModule {
             http_client,
             predicted_wakeup,
             sleepvec,
-            failed_prediction,
-            first_event_after_shutdown
+            first_event_after_shutdown,
+            last_event_time
         }
     }
 
@@ -140,7 +140,7 @@ impl ControllerModule {
 
         if  current_time.signed_duration_since(self.predicted_wakeup.prediction).num_milliseconds() > 0 && ! in_time_grace_period(&current_time, &self.predicted_wakeup.prediction) {
             // something is wrong, we current time is past  predicted time, deadline missed
-            //debug!("doing predicted time is in past, reset");
+            debug!("doing predicted time is in past, reset should not");
             self.predicted_wakeup  = ServerResp { prediction :   current_time + Duration::days(999) };
             
             //todo maybe do wakeup
@@ -170,7 +170,7 @@ impl ControllerModule {
             && !self.wasm.is_uninstantiating()
             && *COMPILE_WITH_UNINSTANCIATE 
             // only shutdown not direct but after x milliseconds of inactive
-            && is_inactive_period(&current_time, self.last_events.back().unwrap())
+            && is_inactive_period(&current_time, &self.last_event_time)
              // do not shut down when we see  in the future predicted is coming 
             && ! in_time_before_prediction_period(&current_time, &self.predicted_wakeup.prediction) 
             && ! in_time_grace_period(&current_time, &self.predicted_wakeup.prediction)
@@ -252,13 +252,11 @@ impl ControllerModule {
 
                 if let Poll::Ready(Some(Err(err))) = poll_result {
 
-                    //should never happen
+                    //should never happen, currently error handeling is not  well implemented i think, if web connection times out  
                     debug!("found error  in a request should not happen {:?}", err);
                     runner.nr_web_calls -= 0;
 
                     debug!("just  return none");
-                    //runner.async_result_rx.poll_recv(cx);
-                    //runner.pending_ops.try_poll_next_unpin(cx);
                     //break None;
                     return Err(err);
                 }
@@ -283,21 +281,39 @@ impl ControllerModule {
                 let now_timestamp = Utc::now();
                 debug!("added wakeup time {:?}",now_timestamp);
                 //reset failed  prediction
-                self.failed_prediction = false;
 
                 let now_timestamp = Utc::now();
                 self.add_event_time(now_timestamp);
                 // wakeup doesn't always  "wake up from disk"
                 
+               // let mut sleep = Box::pin(tokio::time::sleep(Durationtk::from_millis((SHUTDOWNINACTIVEINTERVALMS + 10) as u64)));
+                //debugnextwakeup(SHUTDOWNINACTIVEINTERVALMS + 10);
+                //sleep.poll_unpin(cx);
+                //self.sleepvec.push(sleep);
+
+            }
+
+            // our prediction failed, just set it  far away
+            if self.wasm.is_uninstantiating(){
+                debug!("prediction failed, we got request when inactive");
+                self.predicted_wakeup  = ServerResp { prediction :   Utc::now() + Duration::days(999) };
+
+            }
+
+
+
+            // wake  up after unactive interval
+            if  result.finished{
+                self.last_event_time  = Utc::now();
                 let mut sleep = Box::pin(tokio::time::sleep(Durationtk::from_millis((SHUTDOWNINACTIVEINTERVALMS + 10) as u64)));
                 debugnextwakeup(SHUTDOWNINACTIVEINTERVALMS + 10);
                 sleep.poll_unpin(cx);
                 self.sleepvec.push(sleep);
-
             }
-            // why wake up  when request  not  finished  like before? 
 
-           // debug!("async  request waking up is  there active {:?} with id {:?} and finished  {:?} ", !self.wasm.is_uninstantiating(), result.async_request_id,result.finished);
+
+
+           debug!("async  request waking up is  there active {:?} with id {:?} and finished  {:?} ", !self.wasm.is_uninstantiating(), result.async_request_id,result.finished);
             
             self.wasm
                     .wakeup(result.async_request_id, result.value, result.finished)?;
@@ -305,7 +321,7 @@ impl ControllerModule {
             Ok(true)
             
         } else {
-            debug!("doing false resolve async");
+            //debug!("doing false resolve async");
             Ok(false)
         }
     }
