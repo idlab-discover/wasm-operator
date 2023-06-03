@@ -4,6 +4,4 @@ temp
 .idea
 bin/
 __pycache__
-*.csv
-debug.txt
 tested-operators/

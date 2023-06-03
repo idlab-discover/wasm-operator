@@ -19,7 +19,7 @@ def dateToRust(date):
 def predictAutoReg(diff):
 
     # if not enough data/lags take  min
-    lags  = min(len(diff)//2,10)
+    lags  = 10
     model = AutoReg(diff, lags=lags).fit()
     predction = model.predict(start=len(diff), end=len(diff), dynamic=False)[0]
     return predction
@@ -85,7 +85,7 @@ def predict():
 
     lastEvent  = dates[-1]
     diff  =  [(dates[i] - dates[i-1]).total_seconds() for i in range(1,len(dates))]
-    #print(diff,flush=True)
+    #print(history,flush=True)
     prediction = 0
 
     f = predictAutoReg
@@ -107,13 +107,13 @@ def predict():
     now = lastEvent
     now += timedelta(seconds=prediction)
     now = dateToRust(now)
-    print(f"prediction is  {prediction} with {diff}",flush=True)
-    #print(f"hist {history}",flush=True)
+    #print(f"prediction is  {prediction} with {diff}",flush=True)
+    print(f"{history,now}",flush=True)
     #print(f"diff {diff}",flush=True)
     
     return jsonify({"prediction": now})
 
 if __name__ == "__main__":
 
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000,threaded=True)
 

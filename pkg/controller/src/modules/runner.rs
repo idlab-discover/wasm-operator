@@ -40,6 +40,7 @@ impl OpsRunner {
     }
 
     fn handle_opcall(&mut self, opcall: OpCall<anyhow::Result<bool>>) {
+        debug!("calling handle handle_opcall");
         self.pending_ops.push(opcall);
         self.have_unpolled_ops = true;
     }
@@ -53,6 +54,11 @@ impl OpsRunner {
         if let AsyncRequestValue::Http(_) = request {
             self.nr_web_calls += 1;
         }
+
+        debug!("calling handle request");
+
+        
+
 
         self.handle_opcall(match request {
             AsyncRequestValue::Http(value) => OpCall::eager(async move {
