@@ -93,13 +93,8 @@ async fn main_async() {
     let in_resources: Api<TestResource> = Api::namespaced(client.clone(), "default");
 
 
-    //
-
-
-
     let heap_mem_size = env::var("HEAP_MEM_SIZE").unwrap_or("0".to_string());
     let heap_mem_size = heap_mem_size.parse::<usize>().unwrap();
-
 
 
     //make big memory
@@ -112,11 +107,11 @@ async fn main_async() {
     let huge_mem_alloc = Arc::new(huge_mem_alloc);
 
     
-    
     Controller::new(
         in_resources,
         ListParams {
             bookmarks: false,
+            // TODO IMPORTANT timeout parameter is currently set to 290 seconds  for every watch then it starts a new watch this is pritty random and messes with the acuracy of the prediction  models, and should be increased to probably infinit however there are some bugs in  Kuber-Rs  that  say you  should  not go above 295 seconds,  should be adressed...
             ..ListParams::default()
         },
     )
@@ -151,16 +146,11 @@ async fn reconcile(
     //or use provided resource in arc
     let resource: Api<TestResource> = Api::namespaced(client, "default");
 
-
-
     let now_timestamp = MicroTime(Local::now().with_timezone(&Utc));
-
 
     match resource.get(KUBESECRET).await {
         Ok(mut existing) => {
-
             let size  =  ctx.get_ref().huge_mem_alloc.len();
-           
             println!("{:?}    child node reconsile changed secret on {:?} to {:?}  with  {:?} byte buffer", now_timestamp.0.to_string(),existing.spec.nonce -1,existing.spec.nonce,size );
         }
         Err(kube::Error::Api(ae)) if ae.code == 404 => {
