@@ -34,7 +34,7 @@ executable_exist() {
 
 check_tool_kind() {
   executable_exist kind || {
-    curl -Lo "${TOOLS_PATH}/kind" "https://kind.sigs.k8s.io/dl/v0.13.0/kind-linux-amd64"
+    curl -Lo "${TOOLS_PATH}/kind" "https://kind.sigs.k8s.io/dl/v0.17.0/kind-linux-amd64"
     chmod +x "${TOOLS_PATH}/kind"
   }
 }
@@ -117,15 +117,16 @@ check_tool_rust() {
   RUSTC_WRAPPER=sccache
 }
 
+# need to put  go in $path variable 
 check_tool_go() {
   executable_exist go || {
     pushd "${TOOLS_PATH}"
-    curl -Lo go1.18.2.linux-amd64.tar.gz https://go.dev/dl/go1.18.2.linux-amd64.tar.gz
+    curl -Lo go1.19.5.linux-amd64.tar.gz https://go.dev/dl/go1.19.5.linux-amd64.tar.gz
 
     sudo rm -rf /usr/local/go
-    sudo tar -C /usr/local -xzf go1.18.2.linux-amd64.tar.gz
+    sudo tar -C /usr/local -xzf go1.19.5.linux-amd64.tar.gz
 
-    rm -rf go1.18.2.linux-amd64.tar.gz
+    rm -rf go1.19.5.linux-amd64.tar.gz
     popd
   }
 }
@@ -210,6 +211,30 @@ check_tool_heaptrack() {
     popd
   }
 }
+
+check_tool_Cross() {
+  executable_exist cross || {
+    pushd "${TOOLS_PATH}"
+
+    cargo install cross --git https://github.com/cross-rs/cross
+
+    popd
+  }
+}
+
+check_tool_pip3(){
+
+  executable_exist pip3 || {
+
+    echo "make sure python3 and pip3 is installed"
+    exit 111
+
+  }
+
+}
+
+
+
 
 
 # Config variables

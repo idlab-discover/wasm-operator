@@ -18,7 +18,8 @@ static A: System = System;
 fn main() {
     std::env::set_var(
         "RUST_LOG",
-        "warn,tower=warn,rustls=warn,wasmtime_cranelift=warn,cranelift=warn,regalloc=warn,hyper=warn",
+        //"debug"
+        "debug,tower=warn,rustls=warn,wasmtime_cranelift=warn,cranelift=warn,regalloc=warn,hyper=warn",
     );
 
     tracing_subscriber::fmt::init();
@@ -46,7 +47,7 @@ fn main() {
 
     let path = PathBuf::from(args.remove(1));
     info!("Going to load from {}", path.to_str().unwrap());
-
+    
     let cache_path = std::env::temp_dir().join("cache");
     std::fs::create_dir_all(&cache_path).unwrap();
 
@@ -57,7 +58,7 @@ fn main() {
         .expect("Cannot load the modules from the provided dir");
 
     runtime.block_on(async {
-        let (runtime_command_sender, runtime_command_receiver) = tokio::sync::mpsc::channel(3);
+        let (runtime_command_sender, runtime_command_receiver) = tokio::sync::mpsc::channel(10);
 
         tokio::spawn(runtime::start(
             runtime_command_receiver,

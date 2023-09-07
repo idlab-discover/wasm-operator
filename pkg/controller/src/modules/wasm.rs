@@ -11,6 +11,13 @@ use tokio::sync::OwnedSemaphorePermit as AsyncOwnedSemaphorePermit;
 use tokio::sync::Semaphore as AsyncSemaphore;
 use tracing::Instrument;
 use wasmtime::{Instance, Module, Store};
+use tokio::fs::File;
+use tokio::io::AsyncReadExt;
+use tracing::debug;
+use std::time::Instant;
+
+
+
 
 const WASM_PAGE_SIZE: u64 = 0x10000;
 
@@ -21,9 +28,9 @@ pub struct Snapshot {
 
 enum MaybeInst {
     Locked,
-    NotInst(ControllerCtx),
-    UnsInst(ControllerCtx, Snapshot),
-    GotInst(
+    NotInst(ControllerCtx),// used if not initialised i.e at the beginning
+    UnsInst(ControllerCtx, Snapshot), // used if  the wasm module is cached because not used, so on disk
+    GotInst(    // used when the  wasm module is still in memmory
         Store<ControllerCtx>,
         AsyncOwnedSemaphorePermit,
         Instance,
@@ -114,14 +121,11 @@ impl WasmRuntime {
     ) -> Self {
         Self {
             inner: Arc::new(AsyncMutex::new(MaybeInst::NotInst(controller_ctx))),
-
             wasm_work: None,
             uninstantiating: true,
-
             wasm_path,
             swap_path,
             environment,
-
             async_active_client_counter,
         }
     }
@@ -138,11 +142,21 @@ impl WasmRuntime {
 
         let fut = async move {
             let mut lock = arc.lock().await;
+            // check if wasm module is in memmory,  if so  cache it (should always be the case?)
+            if let MaybeInst::GotInst(mut store, permit, instance) = lock.take_got() { 
+                
+                let now = Instant::now();
+                // TODO  bug  in  memory is  used  2* 90Mb if operator  is 90mb
 
-            if let MaybeInst::GotInst(mut store, permit, instance) = lock.take_got() {
                 let mem = instance.get_memory(&mut store, "memory").unwrap();
-                tokio::fs::write(&swap_path, mem.data(&mut store)).await?;
+                //  write  all memoery into file
 
+            
+                //std::fs::write(&swap_path, mem.data(&store)).unwrap();
+                //this write  causes double memory usage of an  operator
+                tokio::fs::write(&swap_path, mem.data(&store)).await?;
+                
+                
                 let mut globals: Vec<(String, wasmtime::Global)> = instance
                     .exports(&mut store)
                     .filter_map(|exp| {
@@ -152,26 +166,30 @@ impl WasmRuntime {
                     })
                     .collect();
 
+
                 globals = globals
                     .into_iter()
                     .filter(|(_, glob)| {
                         glob.ty(&mut store).mutability() == wasmtime::Mutability::Var
                     })
                     .collect();
+                
 
                 let global_vals = globals
                     .into_iter()
                     .map(|(name, glob)| (name, glob.get(&mut store)))
                     .collect();
-
+            
                 let snapshot = Snapshot {
                     globals: global_vals,
                     memory_min: mem.data_size(&mut store),
                 };
 
-                lock.set(MaybeInst::UnsInst(store.into_data(), snapshot));
+                // does  this cause the  90Mb spike?
+                lock.set(MaybeInst::UnsInst( store.into_data(), snapshot));
 
                 drop(permit);
+                let elapsed = now.elapsed().as_secs_f64();
             }
 
             Ok(())
@@ -191,7 +209,7 @@ impl WasmRuntime {
 
         let fut = async move {
             let mut lock = arc.lock().await;
-
+            // check if module is never initialised, should always  be the case since  this funcion only once get called when  first  starting
             if let MaybeInst::NotInst(context) = lock.take_not() {
                 let permit = async_active_client_counter_clone.acquire_owned().await?;
 
@@ -244,8 +262,12 @@ impl WasmRuntime {
 
         let fut = async move {
             let mut lock = arc.lock().await;
-
+            // check if wasm is uninitialised, i.e. loaded to  disk, in that case load it back to memory
             if let MaybeInst::UnsInst(context, snapshot) = lock.take_uns() {
+
+
+                let now = Instant::now();
+
                 let permit = async_active_client_counter_clone.acquire_owned().await?;
 
                 let module = unsafe { Module::deserialize_file(&environment.engine, &wasm_path)? };
@@ -255,8 +277,6 @@ impl WasmRuntime {
                 
                 drop(module);
 
-                use tokio::fs::File;
-                use tokio::io::AsyncReadExt;
                 let instance = pre_instance.instantiate(&mut store)?;
                 let mem = instance.get_memory(&mut store, "memory").unwrap();
 
@@ -273,7 +293,7 @@ impl WasmRuntime {
 
                     mem.grow(&mut store, n_pages)?;
                 }
-
+                // loads the disk into memory
                 let read = f.read_exact(mem.data_mut(&mut store)).await?;
                 assert_eq!(read, snapshot.memory_min);
 
@@ -289,6 +309,10 @@ impl WasmRuntime {
                     permit,
                     instance,
                 ));
+
+                let elapsed = now.elapsed().as_secs_f64();
+            }
+            else {
             }
 
             let (store, instance) = match &mut *lock {
@@ -307,6 +331,90 @@ impl WasmRuntime {
 
         Ok(())
     }
+
+    // load wasm  back to memory, like wakeup but without needing  a request to be  finished
+    pub(crate) fn load_to_mem(
+        &mut self,
+    )  {
+        
+        assert!(self.wasm_work.is_none());
+        let arc = self.inner.clone();
+        let environment = self.environment.clone();
+        let swap_path = self.swap_path.clone();
+        let wasm_path = self.wasm_path.clone();
+        let async_active_client_counter_clone = self.async_active_client_counter.clone();
+        
+
+        let fut = async move {
+           
+            let mut lock = arc.lock().await;
+            
+
+            // check if wasm is uninitialised, i.e. loaded to  disk, in that case load it back to memory
+            if let MaybeInst::UnsInst(context, snapshot) = lock.take_uns() {
+
+                let now = Instant::now();
+
+                let permit = async_active_client_counter_clone.acquire_owned().await?;
+
+                let module = unsafe { Module::deserialize_file(&environment.engine, &wasm_path)? };
+
+                let mut store = Store::new(&environment.engine, context);
+                let pre_instance = environment.linker.instantiate_pre(&mut store, &module)?;
+                
+                drop(module);
+
+                let instance = pre_instance.instantiate(&mut store)?;
+                let mem = instance.get_memory(&mut store, "memory").unwrap();
+
+                let mut f = File::open(&swap_path).await?;
+                let mem_size = mem.data_size(&mut store);
+
+                if snapshot.memory_min > mem_size {
+                    let memory_diff = (snapshot.memory_min - mem_size) as u64;
+
+                    let mut n_pages = memory_diff / WASM_PAGE_SIZE;
+                    if (memory_diff % WASM_PAGE_SIZE) > 0 {
+                        n_pages += 1;
+                    }
+
+                    mem.grow(&mut store, n_pages)?;
+                }
+
+                // load disk into memory
+                let read = f.read_exact(mem.data_mut(&mut store)).await?;
+
+                assert_eq!(read, snapshot.memory_min);
+                for (name, global) in snapshot.globals.iter() {
+                    instance
+                        .get_global(&mut store, name)
+                        .unwrap()
+                        .set(&mut store, global.clone())?;
+                }
+
+                lock.set(MaybeInst::GotInst(
+                    store,
+                    permit,
+                    instance,
+                ));
+
+                let elapsed = now.elapsed().as_secs_f64();
+            }
+
+            let (store, instance) = match &mut *lock {
+                MaybeInst::GotInst(store, _, instance) => (store, instance),
+                _ => unreachable!(),
+            };
+
+            Ok(())
+        }
+        .boxed();
+
+        self.set_wasm_work(fut, "load_to_mem");
+        self.uninstantiating = false;
+        
+    }
+
 
     fn set_wasm_work(&mut self, fut: BoxFuture<'static, anyhow::Result<()>>, name: &'static str) {
         assert!(self.wasm_work.is_none());

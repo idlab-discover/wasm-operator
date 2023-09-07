@@ -27,15 +27,15 @@ spec:
 EOF
 
     last_index=$((nr_controllers-1))
-
+    #kubectl get all --all-namespaces
+    #kubectl logs 'pod/controller' -n 'native-rust-comb'
     echo "${run} - ${nonce}: waiting for ${namespace_prefix}${last_index}"
     while true
     do
         kubectl wait -n ${namespace_prefix}${last_index} TestResource ${run} --for=jsonpath='{.spec.nonce}'=$nonce || {
             echo "${run} - ${nonce}: FAILED waiting for ${namespace_prefix}${last_index}; retrying"
 
-            sleep 1
-            
+            sleep 5
             continue
         }
 
@@ -63,6 +63,7 @@ test_controller() {
         test_controller_for_nonce $run $nr_controllers $namespace_prefix $j $out_file
     done
 }
+
 
 NR_CONTROLLERS=$1
 NR_CYCLES=$2
