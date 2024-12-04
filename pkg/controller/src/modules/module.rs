@@ -59,7 +59,7 @@ impl ControllerModule {
         let last_event_time = Utc::now();
         last_events.push_back(Utc::now());
         let mut apiserver = env::var("PREDICTION_SERVER").unwrap_or("none".to_string());
-        apiserver.push_str(&"prediction");
+        apiserver.push_str("prediction");
 
         let http_client = reqwest::blocking::Client::new();
         let predicted_wakeup = ServerResp {
@@ -314,14 +314,14 @@ fn in_time_before_prediction_period(
     let difference = predicted_time
         .signed_duration_since(*current_time)
         .num_milliseconds();
-    return difference > 0 && difference < TIMEBEFOREPREDICTEDMS;
+    difference > 0 && difference < TIMEBEFOREPREDICTEDMS
 }
 
 fn in_time_grace_period(current_time: &DateTime<Utc>, predicted_time: &DateTime<Utc>) -> bool {
     let difference = current_time
         .signed_duration_since(*predicted_time)
         .num_milliseconds();
-    return difference > 0 && difference < GRACEPERIODMS;
+    difference > 0 && difference < GRACEPERIODMS
 }
 
 //  Last event                        shutdown/CURRENTTIME
@@ -330,7 +330,7 @@ fn is_inactive_period(current_time: &DateTime<Utc>, lastevent: &DateTime<Utc>) -
     let difference = current_time
         .signed_duration_since(*lastevent)
         .num_milliseconds();
-    return difference > SHUTDOWNINACTIVEINTERVALMS;
+    difference > SHUTDOWNINACTIVEINTERVALMS
 }
 
 fn debugnextwakeup(time: i64) {

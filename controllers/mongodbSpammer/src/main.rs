@@ -1,13 +1,10 @@
-use async_trait::async_trait;
-use futures::stream::{StreamExt, TryStreamExt};
+use futures::stream::StreamExt;
 use mongodb::bson::{doc, Document};
 use mongodb::{Client, Database};
 use rand::distributions::{Alphanumeric, DistString};
-use schemars::gen;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::time::Instant;
-use tokio::task;
 use tokio::time;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -76,7 +73,7 @@ fn generate_book() -> Document {
     let title = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
     let author = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
 
-    return doc! {"title": title, "author":author};
+    doc! {"title": title, "author":author}
 }
 
 async fn generate_books(db: &Database) -> Result<(), mongodb::error::Error> {

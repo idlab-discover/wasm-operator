@@ -64,7 +64,7 @@ pub(crate) async fn create_client_service(kubeconfig: Config) -> Result<KubeClie
     let client: hyper::Client<_, Body> = {
         let connector = kubeconfig.rustls_https_connector()?;
 
-        let mut connector = TimeoutConnector::new(connector);
+        let connector = TimeoutConnector::new(connector);
         // error  handling is not really  well implemented, if a connection times out we crash...
         //connector.set_connect_timeout(timeout);
         //connector.set_read_timeout(timeout);
@@ -99,9 +99,9 @@ pub(crate) async fn create_client_service(kubeconfig: Config) -> Result<KubeClie
                 .on_response(
                     |res: &Response<hyper::Body>, _latency: Duration, span: &Span| {
                         let status = res.status();
-                        span.record("http.status_code", &status.as_u16());
+                        span.record("http.status_code", status.as_u16());
                         if status.is_client_error() || status.is_server_error() {
-                            span.record("otel.status_code", &"ERROR");
+                            span.record("otel.status_code", "ERROR");
                         }
                     },
                 )
@@ -117,10 +117,10 @@ pub(crate) async fn create_client_service(kubeconfig: Config) -> Result<KubeClie
                         // - Polling `Body` errored
                         // - the response was classified as failure (5xx)
                         // - End of stream was classified as failure
-                        span.record("otel.status_code", &"ERROR");
+                        span.record("otel.status_code", "ERROR");
                         match ec {
                             ServerErrorsFailureClass::StatusCode(status) => {
-                                span.record("http.status_code", &status.as_u16());
+                                span.record("http.status_code", status.as_u16());
                                 tracing::error!("failed with status {}", status)
                             }
                             ServerErrorsFailureClass::Error(err) => {

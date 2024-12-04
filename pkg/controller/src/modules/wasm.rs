@@ -12,7 +12,6 @@ use tokio::io::AsyncReadExt;
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::sync::OwnedSemaphorePermit as AsyncOwnedSemaphorePermit;
 use tokio::sync::Semaphore as AsyncSemaphore;
-use tracing::debug;
 use tracing::Instrument;
 use wasmtime::{Instance, Module, Store};
 
@@ -161,12 +160,9 @@ impl WasmRuntime {
                     })
                     .collect();
 
-                globals = globals
-                    .into_iter()
-                    .filter(|(_, glob)| {
+                globals.retain(|(_, glob)| {
                         glob.ty(&mut store).mutability() == wasmtime::Mutability::Var
-                    })
-                    .collect();
+                    });
 
                 let global_vals = globals
                     .into_iter()
@@ -294,8 +290,7 @@ impl WasmRuntime {
                 lock.set(MaybeInst::GotInst(store, permit, instance));
 
                 let elapsed = now.elapsed().as_secs_f64();
-            } else {
-            }
+            } 
 
             let (store, instance) = match &mut *lock {
                 MaybeInst::GotInst(store, _, instance) => (store, instance),

@@ -7,7 +7,7 @@ pub mod abicommand;
 pub mod opcall;
 
 use crate::runtime::http_engine::HttpRequest;
-pub use abicommand::{AsyncRequest, AsyncRequestValue, AsyncResult};
+pub use abicommand::AsyncRequestValue;
 
 pub fn register_imports(linker: &mut Linker<ControllerCtx>) -> anyhow::Result<()> {
     linker.func_wrap("http-proxy-abi", "request", abi_request)?;

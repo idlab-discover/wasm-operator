@@ -11,7 +11,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
 
-use csv;
 use kube_derive::CustomResource;
 
 const KUBESECRET: &str = "varsecret";
@@ -85,7 +84,7 @@ async fn change_secret(secrets: &Api<TestResource>) -> Result<String, Error> {
             secrets
                 .create(
                     &PostParams::default(),
-                    &test_resource(&KUBESECRET, &index, now_timestamp),
+                    &test_resource(KUBESECRET, &index, now_timestamp),
                 )
                 .await?;
             let now_timestamp = MicroTime(Local::now().with_timezone(&Utc));
@@ -112,19 +111,19 @@ fn read_traces() -> Vec<Duration> {
     for date in reader.records() {
         let readdate = date.expect("msg");
         let record = readdate.get(0).expect("str");
-        let parsed = NaiveDateTime::parse_from_str(&record, "%Y-%m-%dT%H:%M:%S.%fZ")
+        let parsed = NaiveDateTime::parse_from_str(record, "%Y-%m-%dT%H:%M:%S.%fZ")
             .expect("can't parse date");
         parsed_dates.push(parsed);
     }
     assert!(parsed_dates.len() > 1);
 
-    let begin_date = parsed_dates.get(0).expect("bigger than 1").clone();
+    let begin_date = *parsed_dates.first().expect("bigger than 1");
     let differences = parsed_dates
         .iter()
         .map(|x| x.signed_duration_since(begin_date))
         .collect::<Vec<_>>();
     // first previous duration will be 0
-    let mut previous_duration = differences.get(0).expect("bigger than 1").clone();
+    let mut previous_duration = *differences.first().expect("bigger than 1");
     let mut interval_differences = vec![];
     // subtract previous time  from current time to get difference
     for i in differences {
@@ -132,7 +131,7 @@ fn read_traces() -> Vec<Duration> {
         previous_duration = i;
     }
 
-    return interval_differences;
+    interval_differences
 }
 
 fn test_resource(name: &str, nonce: &i64, start_timestamp: MicroTime) -> TestResource {
@@ -142,7 +141,7 @@ fn test_resource(name: &str, nonce: &i64, start_timestamp: MicroTime) -> TestRes
             ..Default::default()
         },
         spec: TestResourceSpec {
-            nonce: nonce.clone(),
+            nonce: *nonce,
             updated_at: Some(start_timestamp),
         },
     }
