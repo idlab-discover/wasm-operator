@@ -45,7 +45,6 @@ where
 
 // TODO maybe make abi  for memory loading ??
 
-
 pub(crate) async fn wakeup<S>(
     mut store: S,
     instance: &Instance,
@@ -57,7 +56,7 @@ where
     S: AsContextMut,
     S::Data: Send,
 {
-   // allocates the  memory of a request
+    // allocates the  memory of a request
     let (memory_location_ptr, memory_location_size) = match value {
         None => (std::ptr::null::<*const u32>() as u32, 0),
         Some(event) => {
@@ -76,18 +75,15 @@ where
 
     let wakeup_fn = instance.get_typed_func::<(u64, u32, u32, u32), (), _>(&mut store, "wakeup")?;
 
-    
-
-    wakeup_fn
-        .call(
-            &mut store,
-            (
-                async_request_id,
-                if finished { 1 } else { 0 },
-                memory_location_ptr,
-                memory_location_size as u32,
-            ),
-        )?;
+    wakeup_fn.call(
+        &mut store,
+        (
+            async_request_id,
+            if finished { 1 } else { 0 },
+            memory_location_ptr,
+            memory_location_size as u32,
+        ),
+    )?;
 
     Ok(())
 }
@@ -107,8 +103,6 @@ fn abi_request(mut caller: Caller<'_, ControllerCtx>, ptr: u32, size: u32, strea
     };
 
     let controller_ctx = caller.data_mut();
-
-    
 
     let async_request_id = controller_ctx
         .async_request_id_counter

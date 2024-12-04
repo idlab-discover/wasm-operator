@@ -27,14 +27,13 @@ impl Environment {
         config.memory_init_cow(true);
         config.cranelift_opt_level(OptLevel::SpeedAndSize);
 
-
         // TODO  change limits back
-        let mut instancelimits  =  wasmtime::InstanceLimits::default();
-        println!("instance limits was {:?}",instancelimits);
+        let mut instancelimits = wasmtime::InstanceLimits::default();
+        println!("instance limits was {:?}", instancelimits);
         instancelimits.size = 938860800;
-        instancelimits.memory_pages  *=10;
+        instancelimits.memory_pages *= 10;
 
-        println!("instance limits are {:?}",instancelimits);
+        println!("instance limits are {:?}", instancelimits);
 
         if *super::COMPILE_WITH_UNINSTANCIATE {
             config.allocation_strategy(InstanceAllocationStrategy::Pooling {
@@ -49,9 +48,7 @@ impl Environment {
         let engine = Engine::new(&config)?;
 
         let mut linker = Linker::new(&engine);
-        wasmtime_wasi::add_to_linker(&mut linker, |cx: &mut ControllerCtx| {
-            &mut cx.wasi_ctx
-        })?;
+        wasmtime_wasi::add_to_linker(&mut linker, |cx: &mut ControllerCtx| &mut cx.wasi_ctx)?;
 
         register_imports(&mut linker)?;
 

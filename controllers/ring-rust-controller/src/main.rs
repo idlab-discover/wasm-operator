@@ -88,7 +88,7 @@ async fn main_async() {
     // const heap_mem_size: usize = 1 * 1024 * 1024; // 1MiB
     // const heap_mem_size: usize = 2 * 1024 * 1024; // 2MiB
     // const heap_mem_size: usize = 4 * 1024 * 1024; // 4MiB
-    
+
     let heap_mem_size = env::var("HEAP_MEM_SIZE").unwrap_or("0".to_string());
     let heap_mem_size = heap_mem_size.parse::<usize>().unwrap();
 
@@ -143,7 +143,10 @@ async fn reconcile(
     match out_test_resources.get(&name).await {
         Ok(mut existing) => {
             if nonce > existing.spec.nonce {
-                println!("nonce {} > current nonce  {}, resetting resource",nonce,existing.spec.nonce );
+                println!(
+                    "nonce {} > current nonce  {}, resetting resource",
+                    nonce, existing.spec.nonce
+                );
                 existing.spec.nonce = nonce;
                 existing.spec.updated_at = Some(now_timestamp);
                 out_test_resources

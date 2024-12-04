@@ -8,6 +8,7 @@ use kube::{
 use kube_runtime::controller::{Action, Context, Controller};
 
 use chrono::{Local, Utc};
+use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -15,9 +16,8 @@ use snafu::Snafu;
 use std::env;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::info;
 use tracing::debug;
-use futures::stream::FuturesUnordered;
+use tracing::info;
 
 #[derive(Debug, Snafu)]
 enum Error {
@@ -64,7 +64,10 @@ async fn main_async() {
         .await
         .expect("could not create kube client");
 
-    let nr_operators = env::var("NR_OPERATORS").unwrap_or("1".to_string()).parse::<i32>().unwrap_or(1);
+    let nr_operators = env::var("NR_OPERATORS")
+        .unwrap_or("1".to_string())
+        .parse::<i32>()
+        .unwrap_or(1);
 
     let mut futures = FuturesUnordered::new();
     for i in 0..nr_operators {
@@ -83,7 +86,7 @@ async fn main_async() {
             error_policy,
             Context::new(Data {
                 client: client.clone(),
-                out_namespace: format!("native-rust-comb{}", i+1),
+                out_namespace: format!("native-rust-comb{}", i + 1),
             }),
         )
         .for_each(|res| async move {
