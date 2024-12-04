@@ -10,5 +10,8 @@ cd "${ROOT_DIR}/pkg/kube-rs" && cargo clean
 cd "${ROOT_DIR}/pkg/kube-runtime-abi" && cargo clean
 cd "${ROOT_DIR}/pkg/wasm-delay-queue" && cargo clean
 
+cd "${ROOT_DIR}/controllers/comb-rust-controller" && cargo clean
+cd "${ROOT_DIR}/controllers/mongodbSpammer" && cargo clean
 cd "${ROOT_DIR}/controllers/ring-rust-controller" && cargo clean
 cd "${ROOT_DIR}/controllers/simple-rust-controller" && cargo clean
+cd "${ROOT_DIR}/controllers/value-changer" && cargo clean
