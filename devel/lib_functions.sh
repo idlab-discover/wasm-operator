@@ -4,12 +4,8 @@ set -o nounset
 set -o pipefail
 
 generate_wasm_yaml_file_simple() {
-  
 
-  
-
-
-  cat << EOF
+  cat <<EOF
 name: "simplecontroller"
 wasm: ./simple-pod-example.wasm
 env:
@@ -20,20 +16,15 @@ env:
 ---
 EOF
 
-
 }
-
-
-
 
 generate_wasm_yaml_file() {
   NR_CONTROLLERS=$1
   NAME=$2
 
-  for (( CONTROLLER_NR = 0; CONTROLLER_NR < NR_CONTROLLERS; CONTROLLER_NR++ ))
-  do
+  for ((CONTROLLER_NR = 0; CONTROLLER_NR < NR_CONTROLLERS; CONTROLLER_NR++)); do
 
-  cat << EOF
+    cat <<EOF
 name: ${NAME}${CONTROLLER_NR}
 wasm: ./ring-rust-example.wasi.controller${CONTROLLER_NR}.wasm
 env:
@@ -42,7 +33,7 @@ env:
 - name: IN_NAMESPACE
   value: "${NAME}${CONTROLLER_NR}"
 - name: OUT_NAMESPACE
-  value: "${NAME}$(((CONTROLLER_NR+1) % NR_CONTROLLERS))"
+  value: "${NAME}$(((CONTROLLER_NR + 1) % NR_CONTROLLERS))"
 - name: HEAP_MEM_SIZE
   value: "$HEAP_MEM_SIZE"
 ---
@@ -56,10 +47,9 @@ generate_pod_yaml_file() {
   NAME=$2
   IMAGE=$3
 
-  for (( CONTROLLER_NR = 0; CONTROLLER_NR < NR_CONTROLLERS; CONTROLLER_NR++ ))
-  do
+  for ((CONTROLLER_NR = 0; CONTROLLER_NR < NR_CONTROLLERS; CONTROLLER_NR++)); do
 
-  cat << EOF
+    cat <<EOF
 apiVersion: v1
 kind: Pod
 metadata:
@@ -76,7 +66,7 @@ spec:
     - name: IN_NAMESPACE
       value: "${NAME}${CONTROLLER_NR}"
     - name: OUT_NAMESPACE
-      value: "${NAME}$(((CONTROLLER_NR+1) % NR_CONTROLLERS))"
+      value: "${NAME}$(((CONTROLLER_NR + 1) % NR_CONTROLLERS))"
     - name: HEAP_MEM_SIZE
       value: "$HEAP_MEM_SIZE"
 ---
@@ -85,13 +75,12 @@ EOF
   done
 }
 
-
 generate_pod_yaml_file_combined() {
   NR_CONTROLLERS=$1
   NAME=$2
   IMAGE=$3
 
-  cat << EOF
+  cat <<EOF
 apiVersion: v1
 kind: Pod
 metadata:
@@ -114,7 +103,7 @@ EOF
 generate_pod_yaml_file_simple_rust() {
   SERVER=$1
 
-  cat << EOF
+  cat <<EOF
 apiVersion: v1
 kind: Pod
 metadata:
@@ -144,10 +133,9 @@ generate_namespace_yaml_file() {
   NR_CONTROLLERS=$1
   NAME=$2
 
-  for (( CONTROLLER_NR = 0; CONTROLLER_NR < NR_CONTROLLERS; CONTROLLER_NR++ ))
-  do
-  
-  cat << EOF
+  for ((CONTROLLER_NR = 0; CONTROLLER_NR < NR_CONTROLLERS; CONTROLLER_NR++)); do
+
+    cat <<EOF
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -162,10 +150,9 @@ generate_namespace_yaml_file_simple() {
   NR_CONTROLLERS=$1
   NAME=$2
 
-  for (( CONTROLLER_NR = 0; CONTROLLER_NR < NR_CONTROLLERS; CONTROLLER_NR++ ))
-  do
-  
-  cat << EOF
+  for ((CONTROLLER_NR = 0; CONTROLLER_NR < NR_CONTROLLERS; CONTROLLER_NR++)); do
+
+    cat <<EOF
 apiVersion: v1
 kind: Namespace
 metadata:

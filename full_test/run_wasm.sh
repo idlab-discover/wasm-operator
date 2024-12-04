@@ -4,7 +4,6 @@ set -o nounset
 set -o pipefail
 set -o xtrace
 
-
 trap "exit" INT TERM
 trap "sudo kill 0" EXIT
 
@@ -30,14 +29,13 @@ export RUST_BACKTRACE=1
 
 echo "done with setting everything up"
 
-sleep $((  5 ))
+sleep $((5))
 
 pushd controllers/value-changer
-    cargo run
+cargo run
 popd
 
-kubectl logs -n wasm-rust-simple controller0  
-
+kubectl logs -n wasm-rust-simple controller0
 
 # sleep $((  60 ))
 #sudo pkill -P $profilePID

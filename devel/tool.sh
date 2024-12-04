@@ -11,7 +11,7 @@ mkdir -p "${TOOLS_PATH}"
 PATH="$PATH:$TOOLS_PATH"
 PATH="$PATH:/usr/local/go/bin/"
 
-fn_exists() { declare -F "$1" > /dev/null; }
+fn_exists() { declare -F "$1" >/dev/null; }
 
 check_tool() {
   tool="$1"
@@ -69,12 +69,12 @@ check_tool_etcd() { check_tool_kube-apiserver_and_etcd; }
 check_tool_kube-apiserver_and_etcd() {
   (
     executable_exist kube-apiserver &&
-    executable_exist etcd
+      executable_exist etcd
   ) || {
     pushd "${TOOLS_PATH}"
 
     curl -Lo kubebuilder-tools.tar.gz https://storage.googleapis.com/kubebuilder-tools/kubebuilder-tools-1.23.6-linux-amd64.tar.gz
-    
+
     tar -zxvf kubebuilder-tools.tar.gz
 
     mv ./kubebuilder/bin/kube-apiserver ./kube-apiserver
@@ -117,7 +117,7 @@ check_tool_rust() {
   RUSTC_WRAPPER=sccache
 }
 
-# need to put  go in $path variable 
+# need to put  go in $path variable
 check_tool_go() {
   executable_exist go || {
     pushd "${TOOLS_PATH}"
@@ -144,16 +144,16 @@ check_tool_docker() {
 
   executable_exist docker || {
     read -p "Installing docker globally; Press enter to continue"
-      
+
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
 
     sudo apt update -qq >/dev/null 2>&1
     sudo apt install -qq -y docker-ce apt-transport-https >/dev/null 2>&1
     sudo systemctl restart docker
     sudo systemctl enable docker >/dev/null 2>&1
   }
-  
+
   if ! groups | grep -q "docker"; then
     sudo getent group docker || sudo groupadd docker
     sudo usermod -a -G docker $USER
@@ -168,7 +168,7 @@ check_tool_wasm-opt() {
     pushd "${TOOLS_PATH}"
 
     curl -Lo binaryen-version_105.tar.gz https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz
-    
+
     tar -zxvf binaryen-version_105.tar.gz
 
     mv ./binaryen-version_105/bin/wasm-opt ./wasm-opt
@@ -184,7 +184,7 @@ check_tool_wasm2wat() {
     pushd "${TOOLS_PATH}"
 
     curl -Lo wabt-1.0.27.tar.gz https://github.com/WebAssembly/wabt/releases/download/1.0.27/wabt-1.0.27-ubuntu.tar.gz
-    
+
     tar -zxvf wabt-1.0.27.tar.gz
 
     mv ./wabt-1.0.27/bin/wasm2wat ./wasm2wat
@@ -222,7 +222,7 @@ check_tool_Cross() {
   }
 }
 
-check_tool_pip3(){
+check_tool_pip3() {
 
   executable_exist pip3 || {
 
@@ -232,10 +232,6 @@ check_tool_pip3(){
   }
 
 }
-
-
-
-
 
 # Config variables
 KIND_CLUSTER_NAME="kind"
