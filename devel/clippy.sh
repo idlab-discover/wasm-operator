@@ -5,13 +5,18 @@ set -o pipefail
 
 ROOT_DIR=$(realpath $(dirname $(dirname "${BASH_SOURCE}")))
 
-cd "${ROOT_DIR}/pkg/controller" && cargo +nightly clippy --all
-cd "${ROOT_DIR}/pkg/kube-rs" && cargo +nightly clippy --all
-cd "${ROOT_DIR}/pkg/kube-runtime-abi" && cargo +nightly clippy --all
-cd "${ROOT_DIR}/pkg/wasm-delay-queue" && cargo +nightly clippy --all
+# Required for /pkg/controller to compile
+export COMPILE_WITH_UNINSTANTIATE="TRUE"
+# Required for /controllers/comb-rust-controller and /controllers/ring-rust-controller to compile
+export COMPILE_NONCE="REPLACEMEREPLACEME"
 
-cd "${ROOT_DIR}/controllers/comb-rust-controller" && cargo +nightly clippy --all
-cd "${ROOT_DIR}/controllers/mongodbSpammer" && cargo +nightly clippy --all
-cd "${ROOT_DIR}/controllers/ring-rust-controller" && cargo +nightly clippy --all
-cd "${ROOT_DIR}/controllers/simple-rust-controller" && cargo +nightly clippy --all
-cd "${ROOT_DIR}/controllers/value-changer" && cargo +nightly clippy --all
+cd "${ROOT_DIR}/pkg/controller" && cargo clippy --all
+cd "${ROOT_DIR}/pkg/kube-rs" && cargo clippy --all
+cd "${ROOT_DIR}/pkg/kube-runtime-abi" && cargo clippy --all
+cd "${ROOT_DIR}/pkg/wasm-delay-queue" && cargo clippy --all
+
+cd "${ROOT_DIR}/controllers/comb-rust-controller" && cargo clippy --all -F client-wasi --target wasm32-wasi
+cd "${ROOT_DIR}/controllers/mongodbSpammer" && cargo clippy --all
+cd "${ROOT_DIR}/controllers/ring-rust-controller" && cargo clippy --all -F client-wasi --target wasm32-wasi
+cd "${ROOT_DIR}/controllers/simple-rust-controller" && cargo clippy --all -F client-wasi --target wasm32-wasi
+cd "${ROOT_DIR}/controllers/value-changer" && cargo clippy --all

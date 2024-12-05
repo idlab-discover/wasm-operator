@@ -161,8 +161,8 @@ impl WasmRuntime {
                     .collect();
 
                 globals.retain(|(_, glob)| {
-                        glob.ty(&mut store).mutability() == wasmtime::Mutability::Var
-                    });
+                    glob.ty(&mut store).mutability() == wasmtime::Mutability::Var
+                });
 
                 let global_vals = globals
                     .into_iter()
@@ -290,7 +290,7 @@ impl WasmRuntime {
                 lock.set(MaybeInst::GotInst(store, permit, instance));
 
                 let elapsed = now.elapsed().as_secs_f64();
-            } 
+            }
 
             let (store, instance) = match &mut *lock {
                 MaybeInst::GotInst(store, _, instance) => (store, instance),
