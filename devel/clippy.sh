@@ -15,8 +15,8 @@ cd "${ROOT_DIR}/pkg/kube-rs" && cargo clippy --all
 cd "${ROOT_DIR}/pkg/kube-runtime-abi" && cargo clippy --all
 cd "${ROOT_DIR}/pkg/wasm-delay-queue" && cargo clippy --all
 
-cd "${ROOT_DIR}/controllers/comb-rust-controller" && cargo clippy --all -F client-wasi --target wasm32-wasi
+cd "${ROOT_DIR}/controllers/comb-rust-controller" && cargo clippy --all -F client
 cd "${ROOT_DIR}/controllers/mongodbSpammer" && cargo clippy --all
-cd "${ROOT_DIR}/controllers/ring-rust-controller" && cargo clippy --all -F client-wasi --target wasm32-wasi
-cd "${ROOT_DIR}/controllers/simple-rust-controller" && cargo clippy --all -F client-wasi --target wasm32-wasi
+cd "${ROOT_DIR}/controllers/ring-rust-controller" && cargo clippy --all -F client
+cd "${ROOT_DIR}/controllers/simple-rust-controller" && cargo clippy --all -F client
 cd "${ROOT_DIR}/controllers/value-changer" && cargo clippy --all

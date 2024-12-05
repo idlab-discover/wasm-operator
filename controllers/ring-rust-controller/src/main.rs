@@ -96,7 +96,7 @@ async fn main_async() {
 
     let mut huge_mem_alloc = Vec::with_capacity(heap_mem_size);
     for i in 0..heap_mem_size {
-        huge_mem_alloc.push((i + 9 % 256) as u8);
+        huge_mem_alloc.push((i + 9) as u8);
     }
     let huge_mem_alloc = Arc::new(huge_mem_alloc);
 
@@ -134,7 +134,7 @@ async fn reconcile(
     let out_namespace = ctx.get_ref().out_namespace.clone();
 
     let name = in_test_resource.name();
-    let nonce = in_test_resource.spec.nonce.clone();
+    let nonce = in_test_resource.spec.nonce;
 
     let out_test_resources: Api<TestResource> =
         Api::namespaced(client.clone(), out_namespace.as_str());
@@ -178,7 +178,7 @@ fn test_resource(name: &str, nonce: &i64, start_timestamp: MicroTime) -> TestRes
             ..Default::default()
         },
         spec: TestResourceSpec {
-            nonce: nonce.clone(),
+            nonce: *nonce,
             updated_at: Some(start_timestamp),
         },
     }

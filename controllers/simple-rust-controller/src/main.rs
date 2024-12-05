@@ -17,7 +17,6 @@ use std::mem;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::debug;
-use tracing::info;
 
 const KUBESECRET: &str = "varsecret";
 
@@ -90,7 +89,7 @@ async fn main_async() {
     //make big memory
     let mut huge_mem_alloc = Vec::with_capacity(heap_mem_size);
     for i in 0..heap_mem_size {
-        huge_mem_alloc.push((i + 9 % 256) as u8);
+        huge_mem_alloc.push((i + 9) as u8);
     }
 
     println!("size of  vector  is {}", mem::size_of_val(&*huge_mem_alloc));
@@ -134,7 +133,7 @@ async fn reconcile(resource: Arc<TestResource>, ctx: Context<Data>) -> Result<Ac
     let now_timestamp = MicroTime(Local::now().with_timezone(&Utc));
 
     match resource.get(KUBESECRET).await {
-        Ok(mut existing) => {
+        Ok(existing) => {
             let size = ctx.get_ref().huge_mem_alloc.len();
             println!("{:?}    child node reconsile changed secret on {:?} to {:?}  with  {:?} byte buffer", now_timestamp.0.to_string(),existing.spec.nonce -1,existing.spec.nonce,size );
         }
@@ -144,7 +143,7 @@ async fn reconcile(resource: Arc<TestResource>, ctx: Context<Data>) -> Result<Ac
             resource
                 .create(
                     &PostParams::default(),
-                    &test_resource(&KUBESECRET, &index, now_timestamp),
+                    &test_resource(KUBESECRET, &index, now_timestamp),
                 )
                 .await?;
         }
@@ -162,7 +161,7 @@ fn test_resource(name: &str, nonce: &i64, start_timestamp: MicroTime) -> TestRes
             ..Default::default()
         },
         spec: TestResourceSpec {
-            nonce: nonce.clone(),
+            nonce: *nonce,
             updated_at: Some(start_timestamp),
         },
     }
