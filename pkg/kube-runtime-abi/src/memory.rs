@@ -9,5 +9,5 @@ pub extern "C" fn allocate(size: usize) -> *mut c_void {
     // Deallocation will be done by who's going to consume this allocation
     mem::forget(buffer);
 
-    pointer as *mut c_void
+    pointer
 }

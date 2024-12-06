@@ -66,7 +66,6 @@ impl ControllerModule {
             prediction: Utc::now() + Duration::days(999),
         };
         let sleepvec = vec![];
-        let lastevent_id = 0;
         let first_event_after_shutdown = true;
         Self {
             wasm,
@@ -106,7 +105,7 @@ impl ControllerModule {
         let runner = self.ops_runner.lock().unwrap();
 
         // will be be executed when all instructions are over, but for operators  this is probably never
-        if !(!runner.pending_ops.is_empty()) {
+        if runner.pending_ops.is_empty() {
             // TODO what happends to the wakups still in the sleep list when context is ready
             //cx.waker().wake_by_ref();
             return Poll::Ready(Ok(()));
@@ -252,10 +251,8 @@ impl ControllerModule {
             // use  wakeup timings instead of requests
             if self.first_event_after_shutdown {
                 self.first_event_after_shutdown = false;
-                let now_timestamp = Utc::now();
 
                 //reset failed  prediction
-
                 let now_timestamp = Utc::now();
                 self.add_event_time(now_timestamp);
                 // wakeup doesn't always  "wake up from disk"
@@ -331,9 +328,4 @@ fn is_inactive_period(current_time: &DateTime<Utc>, lastevent: &DateTime<Utc>) -
         .signed_duration_since(*lastevent)
         .num_milliseconds();
     difference > SHUTDOWNINACTIVEINTERVALMS
-}
-
-fn debugnextwakeup(time: i64) {
-    let wakupptime = Utc::now() + Duration::milliseconds(time);
-    //debug!("debug next  wakupcall is {:?}", wakupptime )
 }

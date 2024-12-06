@@ -15,8 +15,8 @@ pub enum AsyncRequestValue {
     Delay(Duration),
 }
 
-#[derive(Debug)]
-pub struct AsyncRequest {
-    pub async_request_id: u64,
-    pub value: AsyncRequestValue,
-}
+// #[derive(Debug)]
+// pub struct AsyncRequest {
+//     pub async_request_id: u64,
+//     pub value: AsyncRequestValue,
+// }

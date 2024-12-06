@@ -2,6 +2,7 @@ use crate::runtime::controller_ctx::ControllerCtx;
 use crate::runtime::Environment;
 use futures::future::BoxFuture;
 use futures::FutureExt;
+use log::debug;
 use std::fmt;
 use std::sync::Arc;
 use std::task::Context;
@@ -178,7 +179,10 @@ impl WasmRuntime {
                 lock.set(MaybeInst::UnsInst(store.into_data(), snapshot));
 
                 drop(permit);
-                let elapsed = now.elapsed().as_secs_f64();
+                debug!(
+                    "Time elapsed in uninstantiate: {}",
+                    now.elapsed().as_secs_f64()
+                );
             }
 
             Ok(())
@@ -289,7 +293,7 @@ impl WasmRuntime {
 
                 lock.set(MaybeInst::GotInst(store, permit, instance));
 
-                let elapsed = now.elapsed().as_secs_f64();
+                debug!("Time elapsed in wakeup: {}", now.elapsed().as_secs_f64());
             }
 
             let (store, instance) = match &mut *lock {
@@ -364,10 +368,13 @@ impl WasmRuntime {
 
                 lock.set(MaybeInst::GotInst(store, permit, instance));
 
-                let elapsed = now.elapsed().as_secs_f64();
+                debug!(
+                    "Time elapsed in load_to_mem: {}",
+                    now.elapsed().as_secs_f64()
+                );
             }
 
-            let (store, instance) = match &mut *lock {
+            let (_store, _instance) = match &mut *lock {
                 MaybeInst::GotInst(store, _, instance) => (store, instance),
                 _ => unreachable!(),
             };

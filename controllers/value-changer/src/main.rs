@@ -104,7 +104,7 @@ async fn change_secret(secrets: &Api<TestResource>) -> Result<String, Error> {
 fn read_traces() -> Vec<Duration> {
     let mut reader = csv::Reader::from_path("traces.csv").expect("can't read csv file");
 
-    let header = reader.headers().expect("can't read headers");
+    // let _header = reader.headers().expect("can't read headers");
 
     let mut parsed_dates = vec![];
 

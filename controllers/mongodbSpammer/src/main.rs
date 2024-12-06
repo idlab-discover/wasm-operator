@@ -19,7 +19,7 @@ async fn main() {
 
     generate_books(&c).await.unwrap();
 
-    let mut totalReads = 0;
+    let mut total_reads = 0;
 
     let now = Instant::now();
     let mut interval = time::interval(time::Duration::from_secs(1));
@@ -27,11 +27,11 @@ async fn main() {
         interval.tick().await;
 
         let nr = read_ops(&c).await;
-        totalReads += nr;
+        total_reads += nr;
         let elapsed = now.elapsed();
         println!(
             "{:?} reads per sec",
-            totalReads as f64 / elapsed.as_secs_f64()
+            total_reads as f64 / elapsed.as_secs_f64()
         );
     }
 

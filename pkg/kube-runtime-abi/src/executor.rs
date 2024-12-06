@@ -11,6 +11,8 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex, Once};
 use std::task::{Context, Poll, Waker};
 
+use crate::SpawnerError;
+
 static mut SPAWNER: Option<LocalSpawner> = None;
 
 pub fn get_mut_executor() -> Rc<RefCell<LocalPool>> {
@@ -24,7 +26,10 @@ pub fn get_mut_executor() -> Rc<RefCell<LocalPool>> {
             let singleton = Rc::new(RefCell::new(LocalPool::new()));
 
             // Put it in the heap so it can outlive this call
-            SINGLETON = mem::transmute(Box::new(singleton));
+            SINGLETON = mem::transmute::<
+                Box<Rc<RefCell<LocalPool>>>,
+                *const Rc<RefCell<LocalPool>>,
+            >(Box::new(singleton));
         });
 
         let pool = (*SINGLETON).clone();
@@ -34,11 +39,11 @@ pub fn get_mut_executor() -> Rc<RefCell<LocalPool>> {
     }
 }
 
-pub fn get_spawner() -> Result<LocalSpawner, ()> {
+pub fn get_spawner() -> Result<LocalSpawner, SpawnerError> {
     if let Some(spawner) = unsafe { SPAWNER.clone() } {
         Ok(spawner)
     } else {
-        Err(())
+        Err(SpawnerError::SpawnerNotInitialized)
     }
 }
 
@@ -55,7 +60,10 @@ fn get_pending_async() -> Rc<RefCell<HashMap<u64, Arc<Mutex<AsyncState>>>>> {
                 Rc::new(RefCell::new(HashMap::new()));
 
             // Put it in the heap so it can outlive this call
-            SINGLETON = mem::transmute(Box::new(singleton));
+            SINGLETON = mem::transmute::<
+                Box<Rc<RefCell<HashMap<u64, Arc<Mutex<AsyncState>>>>>>,
+                *const Rc<RefCell<HashMap<u64, Arc<Mutex<AsyncState>>>>>,
+            >(Box::new(singleton));
         });
 
         (*SINGLETON).clone()

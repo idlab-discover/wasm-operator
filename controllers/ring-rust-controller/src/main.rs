@@ -49,6 +49,7 @@ fn error_policy(_error: &Error, _ctx: Context<Data>) -> Action {
 struct Data {
     client: Client,
     out_namespace: String,
+    #[allow(dead_code)]
     huge_mem_alloc: Arc<Vec<u8>>,
 }
 
