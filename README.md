@@ -48,6 +48,12 @@ This project builds upon [this proof of concept](https://github.com/slinkydevelo
 > ./full_test/run_wasm.sh
 ```
 
+## Get involved
+This is an open source project, currently in the prototyping phase.
+We greatly value feedback, bug reports, contributions,... during this stage of the project.
+- to provide bug reports, feedback or suggestions, [create an issue](https://github.com/idlab-discover/wasm-operator/issues/new)
+- to contribute code, see [contributing.md](docs/contributing.md)
+
 ## Copyright
 
 This code is released under the Apache License Version 2.0.
