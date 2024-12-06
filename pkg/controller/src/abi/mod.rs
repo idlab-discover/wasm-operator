@@ -43,7 +43,7 @@ where
         .call(&mut store, allocation_size)
 }
 
-// TODO maybe make abi  for memory loading ??
+// TODO maybe make abi for memory loading ??
 
 pub(crate) async fn wakeup<S>(
     mut store: S,
@@ -56,7 +56,7 @@ where
     S: AsContextMut,
     S::Data: Send,
 {
-    // allocates the  memory of a request
+    // allocates the memory of a request
     let (memory_location_ptr, memory_location_size) = match value {
         None => (std::ptr::null::<*const u32>() as u32, 0),
         Some(event) => {

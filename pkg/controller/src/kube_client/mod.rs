@@ -65,7 +65,7 @@ pub(crate) async fn create_client_service(kubeconfig: Config) -> Result<KubeClie
         let connector = kubeconfig.rustls_https_connector()?;
 
         let connector = TimeoutConnector::new(connector);
-        // error  handling is not really  well implemented, if a connection times out we crash...
+        // error handling is not really well implemented, if a connection times out we crash...
         //connector.set_connect_timeout(timeout);
         //connector.set_read_timeout(timeout);
         //connector.set_write_timeout(timeout);

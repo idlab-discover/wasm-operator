@@ -26,9 +26,9 @@ pub struct Snapshot {
 enum MaybeInst {
     Locked,
     NotInst(ControllerCtx), // used if not initialised i.e at the beginning
-    UnsInst(ControllerCtx, Snapshot), // used if  the wasm module is cached because not used, so on disk
+    UnsInst(ControllerCtx, Snapshot), // used if the wasm module is cached because not used, so on disk
     GotInst(
-        // used when the  wasm module is still in memmory
+        // used when the wasm module is still in memory
         Store<ControllerCtx>,
         AsyncOwnedSemaphorePermit,
         Instance,
@@ -140,16 +140,16 @@ impl WasmRuntime {
 
         let fut = async move {
             let mut lock = arc.lock().await;
-            // check if wasm module is in memmory,  if so  cache it (should always be the case?)
+            // check if wasm module is in memory, if so cache it (should always be the case?)
             if let MaybeInst::GotInst(mut store, permit, instance) = lock.take_got() {
                 let now = Instant::now();
-                // TODO  bug  in  memory is  used  2* 90Mb if operator  is 90mb
+                // TODO: bug in memory is used 2*90Mb if operator is 90mb
 
                 let mem = instance.get_memory(&mut store, "memory").unwrap();
-                //  write  all memoery into file
+                // write all memory into file
 
                 //std::fs::write(&swap_path, mem.data(&store)).unwrap();
-                //this write  causes double memory usage of an  operator
+                //this write causes double memory usage of an operator
                 tokio::fs::write(&swap_path, mem.data(&store)).await?;
 
                 let mut globals: Vec<(String, wasmtime::Global)> = instance
@@ -175,7 +175,7 @@ impl WasmRuntime {
                     memory_min: mem.data_size(&mut store),
                 };
 
-                // does  this cause the  90Mb spike?
+                // does this cause the 90Mb spike?
                 lock.set(MaybeInst::UnsInst(store.into_data(), snapshot));
 
                 drop(permit);
@@ -202,7 +202,7 @@ impl WasmRuntime {
 
         let fut = async move {
             let mut lock = arc.lock().await;
-            // check if module is never initialised, should always  be the case since  this funcion only once get called when  first  starting
+            // check if module is never initialised, should always be the case since this funcion only once get called when first starting
             if let MaybeInst::NotInst(context) = lock.take_not() {
                 let permit = async_active_client_counter_clone.acquire_owned().await?;
 
@@ -251,7 +251,7 @@ impl WasmRuntime {
 
         let fut = async move {
             let mut lock = arc.lock().await;
-            // check if wasm is uninitialised, i.e. loaded to  disk, in that case load it back to memory
+            // check if wasm is uninitialised, i.e. loaded to disk, in that case load it back to memory
             if let MaybeInst::UnsInst(context, snapshot) = lock.take_uns() {
                 let now = Instant::now();
 
@@ -313,7 +313,7 @@ impl WasmRuntime {
         Ok(())
     }
 
-    // load wasm  back to memory, like wakeup but without needing  a request to be  finished
+    // load wasm back to memory, like wakeup but without needing a request to be finished
     pub(crate) fn load_to_mem(&mut self) {
         assert!(self.wasm_work.is_none());
         let arc = self.inner.clone();
@@ -325,7 +325,7 @@ impl WasmRuntime {
         let fut = async move {
             let mut lock = arc.lock().await;
 
-            // check if wasm is uninitialised, i.e. loaded to  disk, in that case load it back to memory
+            // check if wasm is uninitialised, i.e. loaded to disk, in that case load it back to memory
             if let MaybeInst::UnsInst(context, snapshot) = lock.take_uns() {
                 let now = Instant::now();
 

@@ -99,7 +99,7 @@ async fn main_async() {
         in_resources,
         ListParams {
             bookmarks: false,
-            // TODO IMPORTANT timeout parameter is currently set to 290 seconds  for every watch then it starts a new watch this is pritty random and messes with the acuracy of the prediction  models, and should be increased to probably infinit however there are some bugs in  Kuber-Rs  that  say you  should  not go above 295 seconds,  should be adressed...
+            // TODO IMPORTANT timeout parameter is currently set to 290 seconds for every watch then it starts a new watch this is pritty random and messes with the acuracy of the prediction models, and should be increased to probably infinit however there are some bugs in Kube.rs that say you should not go above 295 seconds, should be adressed...
             ..ListParams::default()
         },
     )
@@ -108,7 +108,7 @@ async fn main_async() {
         error_policy,
         Context::new(Data {
             client,
-            //    out_namespace,
+            // out_namespace,
             huge_mem_alloc,
         }),
     )

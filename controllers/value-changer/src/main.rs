@@ -125,7 +125,7 @@ fn read_traces() -> Vec<Duration> {
     // first previous duration will be 0
     let mut previous_duration = *differences.first().expect("bigger than 1");
     let mut interval_differences = vec![];
-    // subtract previous time  from current time to get difference
+    // subtract previous time from current time to get difference
     for i in differences {
         interval_differences.push(i - previous_duration);
         previous_duration = i;
