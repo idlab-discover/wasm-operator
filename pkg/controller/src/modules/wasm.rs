@@ -2,22 +2,19 @@ use crate::runtime::controller_ctx::ControllerCtx;
 use crate::runtime::Environment;
 use futures::future::BoxFuture;
 use futures::FutureExt;
+use log::debug;
 use std::fmt;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
+use std::time::Instant;
+use tokio::fs::File;
+use tokio::io::AsyncReadExt;
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::sync::OwnedSemaphorePermit as AsyncOwnedSemaphorePermit;
 use tokio::sync::Semaphore as AsyncSemaphore;
 use tracing::Instrument;
 use wasmtime::{Instance, Module, Store};
-use tokio::fs::File;
-use tokio::io::AsyncReadExt;
-use tracing::debug;
-use std::time::Instant;
-
-
-
 
 const WASM_PAGE_SIZE: u64 = 0x10000;
 
@@ -28,9 +25,10 @@ pub struct Snapshot {
 
 enum MaybeInst {
     Locked,
-    NotInst(ControllerCtx),// used if not initialised i.e at the beginning
-    UnsInst(ControllerCtx, Snapshot), // used if  the wasm module is cached because not used, so on disk
-    GotInst(    // used when the  wasm module is still in memmory
+    NotInst(ControllerCtx), // used if not initialised i.e at the beginning
+    UnsInst(ControllerCtx, Snapshot), // used if the wasm module is cached because not used, so on disk
+    GotInst(
+        // used when the wasm module is still in memory
         Store<ControllerCtx>,
         AsyncOwnedSemaphorePermit,
         Instance,
@@ -142,21 +140,18 @@ impl WasmRuntime {
 
         let fut = async move {
             let mut lock = arc.lock().await;
-            // check if wasm module is in memmory,  if so  cache it (should always be the case?)
-            if let MaybeInst::GotInst(mut store, permit, instance) = lock.take_got() { 
-                
+            // check if wasm module is in memory, if so cache it (should always be the case?)
+            if let MaybeInst::GotInst(mut store, permit, instance) = lock.take_got() {
                 let now = Instant::now();
-                // TODO  bug  in  memory is  used  2* 90Mb if operator  is 90mb
+                // TODO: bug in memory is used 2*90Mb if operator is 90mb
 
                 let mem = instance.get_memory(&mut store, "memory").unwrap();
-                //  write  all memoery into file
+                // write all memory into file
 
-            
                 //std::fs::write(&swap_path, mem.data(&store)).unwrap();
-                //this write  causes double memory usage of an  operator
+                //this write causes double memory usage of an operator
                 tokio::fs::write(&swap_path, mem.data(&store)).await?;
-                
-                
+
                 let mut globals: Vec<(String, wasmtime::Global)> = instance
                     .exports(&mut store)
                     .filter_map(|exp| {
@@ -166,30 +161,28 @@ impl WasmRuntime {
                     })
                     .collect();
 
-
-                globals = globals
-                    .into_iter()
-                    .filter(|(_, glob)| {
-                        glob.ty(&mut store).mutability() == wasmtime::Mutability::Var
-                    })
-                    .collect();
-                
+                globals.retain(|(_, glob)| {
+                    glob.ty(&mut store).mutability() == wasmtime::Mutability::Var
+                });
 
                 let global_vals = globals
                     .into_iter()
                     .map(|(name, glob)| (name, glob.get(&mut store)))
                     .collect();
-            
+
                 let snapshot = Snapshot {
                     globals: global_vals,
                     memory_min: mem.data_size(&mut store),
                 };
 
-                // does  this cause the  90Mb spike?
-                lock.set(MaybeInst::UnsInst( store.into_data(), snapshot));
+                // does this cause the 90Mb spike?
+                lock.set(MaybeInst::UnsInst(store.into_data(), snapshot));
 
                 drop(permit);
-                let elapsed = now.elapsed().as_secs_f64();
+                debug!(
+                    "Time elapsed in uninstantiate: {}",
+                    now.elapsed().as_secs_f64()
+                );
             }
 
             Ok(())
@@ -209,7 +202,7 @@ impl WasmRuntime {
 
         let fut = async move {
             let mut lock = arc.lock().await;
-            // check if module is never initialised, should always  be the case since  this funcion only once get called when  first  starting
+            // check if module is never initialised, should always be the case since this funcion only once get called when first starting
             if let MaybeInst::NotInst(context) = lock.take_not() {
                 let permit = async_active_client_counter_clone.acquire_owned().await?;
 
@@ -223,11 +216,7 @@ impl WasmRuntime {
 
                 let instance = pre_instance.instantiate(&mut store)?;
 
-                lock.set(MaybeInst::GotInst(
-                    store,
-                    permit,
-                    instance,
-                ));
+                lock.set(MaybeInst::GotInst(store, permit, instance));
             }
 
             let (store, instance) = match &mut *lock {
@@ -262,10 +251,8 @@ impl WasmRuntime {
 
         let fut = async move {
             let mut lock = arc.lock().await;
-            // check if wasm is uninitialised, i.e. loaded to  disk, in that case load it back to memory
+            // check if wasm is uninitialised, i.e. loaded to disk, in that case load it back to memory
             if let MaybeInst::UnsInst(context, snapshot) = lock.take_uns() {
-
-
                 let now = Instant::now();
 
                 let permit = async_active_client_counter_clone.acquire_owned().await?;
@@ -274,7 +261,7 @@ impl WasmRuntime {
 
                 let mut store = Store::new(&environment.engine, context);
                 let pre_instance = environment.linker.instantiate_pre(&mut store, &module)?;
-                
+
                 drop(module);
 
                 let instance = pre_instance.instantiate(&mut store)?;
@@ -304,15 +291,9 @@ impl WasmRuntime {
                         .set(&mut store, global.clone())?;
                 }
 
-                lock.set(MaybeInst::GotInst(
-                    store,
-                    permit,
-                    instance,
-                ));
+                lock.set(MaybeInst::GotInst(store, permit, instance));
 
-                let elapsed = now.elapsed().as_secs_f64();
-            }
-            else {
+                debug!("Time elapsed in wakeup: {}", now.elapsed().as_secs_f64());
             }
 
             let (store, instance) = match &mut *lock {
@@ -332,27 +313,20 @@ impl WasmRuntime {
         Ok(())
     }
 
-    // load wasm  back to memory, like wakeup but without needing  a request to be  finished
-    pub(crate) fn load_to_mem(
-        &mut self,
-    )  {
-        
+    // load wasm back to memory, like wakeup but without needing a request to be finished
+    pub(crate) fn load_to_mem(&mut self) {
         assert!(self.wasm_work.is_none());
         let arc = self.inner.clone();
         let environment = self.environment.clone();
         let swap_path = self.swap_path.clone();
         let wasm_path = self.wasm_path.clone();
         let async_active_client_counter_clone = self.async_active_client_counter.clone();
-        
 
         let fut = async move {
-           
             let mut lock = arc.lock().await;
-            
 
-            // check if wasm is uninitialised, i.e. loaded to  disk, in that case load it back to memory
+            // check if wasm is uninitialised, i.e. loaded to disk, in that case load it back to memory
             if let MaybeInst::UnsInst(context, snapshot) = lock.take_uns() {
-
                 let now = Instant::now();
 
                 let permit = async_active_client_counter_clone.acquire_owned().await?;
@@ -361,7 +335,7 @@ impl WasmRuntime {
 
                 let mut store = Store::new(&environment.engine, context);
                 let pre_instance = environment.linker.instantiate_pre(&mut store, &module)?;
-                
+
                 drop(module);
 
                 let instance = pre_instance.instantiate(&mut store)?;
@@ -392,16 +366,15 @@ impl WasmRuntime {
                         .set(&mut store, global.clone())?;
                 }
 
-                lock.set(MaybeInst::GotInst(
-                    store,
-                    permit,
-                    instance,
-                ));
+                lock.set(MaybeInst::GotInst(store, permit, instance));
 
-                let elapsed = now.elapsed().as_secs_f64();
+                debug!(
+                    "Time elapsed in load_to_mem: {}",
+                    now.elapsed().as_secs_f64()
+                );
             }
 
-            let (store, instance) = match &mut *lock {
+            let (_store, _instance) = match &mut *lock {
                 MaybeInst::GotInst(store, _, instance) => (store, instance),
                 _ => unreachable!(),
             };
@@ -412,9 +385,7 @@ impl WasmRuntime {
 
         self.set_wasm_work(fut, "load_to_mem");
         self.uninstantiating = false;
-        
     }
-
 
     fn set_wasm_work(&mut self, fut: BoxFuture<'static, anyhow::Result<()>>, name: &'static str) {
         assert!(self.wasm_work.is_none());

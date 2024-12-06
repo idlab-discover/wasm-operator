@@ -16,14 +16,12 @@ cd "${SCRIPT_ROOT}/.."
 
 export HEAP_MEM_SIZE=0
 
-for (( run = 0; run <= 5; run+=1 ))
-do
+for ((run = 0; run <= 5; run += 1)); do
     mkdir -p "test_results_run$run"
 
-    for (( nrworkers = 70; nrworkers <= 100; nrworkers+=10 ))
-    do
+    for ((nrworkers = 70; nrworkers <= 100; nrworkers += 10)); do
         nritters=500
-        sleepperiod=$(( 200 + 3 * $nrworkers ))
+        sleepperiod=$((200 + 3 * $nrworkers))
 
         echo "operators: $nrworkers"
         echo "itter: $nritters"
@@ -63,7 +61,7 @@ do
         fi
 
         export COMPILE_WITH_UNINSTANTIATE="TRUE"
-        
+
         if [ ! -f ./test_results_run$run/out_wasm_${nrworkers}_uninst.csv ]; then
             ./devel/create_cluster.sh
             ./devel/setup_wasm_rust.sh $nrworkers
@@ -71,12 +69,12 @@ do
             ./profile/profile.sh wasm ./test_results_run$run/out_wasm_${nrworkers}_uninst.csv &
             profilePID=$!
             ./devel/test.sh $nrworkers $nritters "wasm-rust" ./test_results_run$run/out_wasm_${nrworkers}_time_uninst.csv
-            sleep $(( $sleepperiod + 600 ))
+            sleep $(($sleepperiod + 600))
             sudo pkill -P $profilePID
         fi
 
         export COMPILE_WITH_UNINSTANTIATE="FALSE"
-        
+
         if [ ! -f ./test_results_run$run/out_wasm_${nrworkers}.csv ]; then
             ./devel/create_cluster.sh
             ./devel/setup_wasm_rust.sh $nrworkers
@@ -84,7 +82,7 @@ do
             ./profile/profile.sh wasm ./test_results_run$run/out_wasm_${nrworkers}.csv &
             profilePID=$!
             ./devel/test.sh $nrworkers $nritters "wasm-rust" ./test_results_run$run/out_wasm_${nrworkers}_time.csv
-            sleep $(( $sleepperiod + 600 ))
+            sleep $(($sleepperiod + 600))
             sudo pkill -P $profilePID
         fi
     done
@@ -92,15 +90,13 @@ done
 
 export HEAP_MEM_SIZE=0
 
-for (( run = 0; run <= 5; run+=1 ))
-do
+for ((run = 0; run <= 5; run += 1)); do
     mkdir -p "test_heap_results_run$run"
 
-    for (( heap_mem_size = 0; heap_mem_size <= 3 * 1024 * 1024; heap_mem_size+=1024 * 1024 ))
-    do
+    for ((heap_mem_size = 0; heap_mem_size <= 3 * 1024 * 1024; heap_mem_size += 1024 * 1024)); do
         nritters=500
         nrworkers=60
-        sleepperiod=$(( 200 + 3 * $nrworkers ))
+        sleepperiod=$((200 + 3 * $nrworkers))
 
         echo "operators: $nrworkers"
         echo "itter: $nritters"
@@ -120,26 +116,26 @@ do
         fi
 
         export COMPILE_WITH_UNINSTANTIATE="TRUE"
-        
+
         if [ ! -f ./test_heap_results_run$run/${heap_mem_size}_out_wasm_${nrworkers}_uninst.csv ]; then
             ./devel/create_cluster.sh
             ./devel/setup_wasm_rust.sh $nrworkers
             ./profile/profile.sh wasm ./test_heap_results_run$run/${heap_mem_size}_out_wasm_${nrworkers}_uninst.csv &
             profilePID=$!
             ./devel/test.sh $nrworkers 200 "wasm-rust" ./test_heap_results_run$run/${heap_mem_size}_out_wasm_${nrworkers}_time_uninst.csv
-            sleep $(( $sleepperiod + 600 ))
+            sleep $(($sleepperiod + 600))
             sudo pkill -P $profilePID
         fi
 
         export COMPILE_WITH_UNINSTANTIATE="FALSE"
-        
+
         if [ ! -f ./test_heap_results_run$run/${heap_mem_size}_out_wasm_${nrworkers}.csv ]; then
             ./devel/create_cluster.sh
             ./devel/setup_wasm_rust.sh $nrworkers
             ./profile/profile.sh wasm ./test_heap_results_run$run/${heap_mem_size}_out_wasm_${nrworkers}.csv &
             profilePID=$!
             ./devel/test.sh $nrworkers 200 "wasm-rust" ./test_heap_results_run$run/${heap_mem_size}_out_wasm_${nrworkers}_time.csv
-            sleep $(( $sleepperiod + 600 ))
+            sleep $(($sleepperiod + 600))
             sudo pkill -P $profilePID
         fi
     done

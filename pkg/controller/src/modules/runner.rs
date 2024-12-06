@@ -57,9 +57,6 @@ impl OpsRunner {
 
         debug!("calling handle request");
 
-        
-
-
         self.handle_opcall(match request {
             AsyncRequestValue::Http(value) => OpCall::eager(async move {
                 debug!(

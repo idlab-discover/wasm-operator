@@ -15,8 +15,8 @@ test_controller_for_nonce() {
     nonce=$4
     out_file=$5
 
-    start=`date +%s%N`
-    cat << EOF | kubectl apply -f -
+    start=$(date +%s%N)
+    cat <<EOF | kubectl apply -f -
 apiVersion: amurant.io/v1
 kind: TestResource
 metadata:
@@ -26,12 +26,11 @@ spec:
     nonce: ${nonce}
 EOF
 
-    last_index=$((nr_controllers-1))
+    last_index=$((nr_controllers - 1))
     #kubectl get all --all-namespaces
     #kubectl logs 'pod/controller' -n 'native-rust-comb'
     echo "${run} - ${nonce}: waiting for ${namespace_prefix}${last_index}"
-    while true
-    do
+    while true; do
         kubectl wait -n ${namespace_prefix}${last_index} TestResource ${run} --for=jsonpath='{.spec.nonce}'=$nonce || {
             echo "${run} - ${nonce}: FAILED waiting for ${namespace_prefix}${last_index}; retrying"
 
@@ -43,9 +42,9 @@ EOF
     done
     echo "${run} - ${nonce}: FINISHED waiting for ${namespace_prefix}"
 
-    end=`date +%s%N`
-    runtime=$(((end-start)/1000000))
-    echo "${start};${end};${runtime}" >> $out_file
+    end=$(date +%s%N)
+    runtime=$(((end - start) / 1000000))
+    echo "${start};${end};${runtime}" >>$out_file
     echo "${run} - ${nonce}: ${namespace_prefix}${last_index} is ready (${runtime}ms)"
 }
 
@@ -56,14 +55,12 @@ test_controller() {
     nr_cycles=$4
     out_file=$5
 
-    echo "starttime;endtime;roundtime" > $out_file
+    echo "starttime;endtime;roundtime" >$out_file
 
-    for (( j = 0; j < $nr_cycles; j++ ))
-    do
+    for ((j = 0; j < $nr_cycles; j++)); do
         test_controller_for_nonce $run $nr_controllers $namespace_prefix $j $out_file
     done
 }
-
 
 NR_CONTROLLERS=$1
 NR_CYCLES=$2

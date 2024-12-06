@@ -10,5 +10,8 @@ cd "${ROOT_DIR}/pkg/kube-rs" && cargo +nightly fmt --all
 cd "${ROOT_DIR}/pkg/kube-runtime-abi" && cargo +nightly fmt --all
 cd "${ROOT_DIR}/pkg/wasm-delay-queue" && cargo +nightly fmt --all
 
+cd "${ROOT_DIR}/controllers/comb-rust-controller" && cargo +nightly fmt --all
+cd "${ROOT_DIR}/controllers/mongodbSpammer" && cargo +nightly fmt --all
 cd "${ROOT_DIR}/controllers/ring-rust-controller" && cargo +nightly fmt --all
 cd "${ROOT_DIR}/controllers/simple-rust-controller" && cargo +nightly fmt --all
+cd "${ROOT_DIR}/controllers/value-changer" && cargo +nightly fmt --all

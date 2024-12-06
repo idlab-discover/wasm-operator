@@ -13,16 +13,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
 use std::env;
+use std::mem;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::debug;
-use tracing::info;
-use std::mem;
 
-
-
-const KUBESECRET:&str = "varsecret";
-
+const KUBESECRET: &str = "varsecret";
 
 #[cfg(target_arch = "wasm32")]
 use {futures::task::SpawnExt, std::ops::Deref};
@@ -34,13 +30,12 @@ enum Error {
     UnknownKubeError { source: kube::Error },
 }
 
-
 #[derive(CustomResource, Debug, Serialize, Deserialize, Default, Clone, JsonSchema)]
 #[kube(
     kind = "TestResource",
     group = "amurant.io",
     version = "v1",
-    namespaced 
+    namespaced
 )]
 pub struct TestResourceSpec {
     nonce: i64,
@@ -59,8 +54,6 @@ struct Data {
     huge_mem_alloc: Arc<Vec<u8>>,
 }
 
-
-
 #[cfg(target_arch = "wasm32")]
 fn main() {
     let exec = kube_runtime_abi::get_mut_executor();
@@ -74,13 +67,11 @@ fn main() {
     exec.deref().borrow_mut().run_until_stalled();
 }
 
-
 #[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
 async fn main() {
     main_async().await;
 }
-
 
 async fn main_async() {
     tracing_subscriber::fmt::init();
@@ -92,36 +83,33 @@ async fn main_async() {
 
     let in_resources: Api<TestResource> = Api::namespaced(client.clone(), "default");
 
-
     let heap_mem_size = env::var("HEAP_MEM_SIZE").unwrap_or("0".to_string());
     let heap_mem_size = heap_mem_size.parse::<usize>().unwrap();
-
 
     //make big memory
     let mut huge_mem_alloc = Vec::with_capacity(heap_mem_size);
     for i in 0..heap_mem_size {
-        huge_mem_alloc.push((i + 9 % 256) as u8);
+        huge_mem_alloc.push((i + 9) as u8);
     }
-   
+
     println!("size of  vector  is {}", mem::size_of_val(&*huge_mem_alloc));
     let huge_mem_alloc = Arc::new(huge_mem_alloc);
 
-    
     Controller::new(
         in_resources,
         ListParams {
             bookmarks: false,
-            // TODO IMPORTANT timeout parameter is currently set to 290 seconds  for every watch then it starts a new watch this is pritty random and messes with the acuracy of the prediction  models, and should be increased to probably infinit however there are some bugs in  Kuber-Rs  that  say you  should  not go above 295 seconds,  should be adressed...
+            // TODO IMPORTANT timeout parameter is currently set to 290 seconds for every watch then it starts a new watch this is pretty random and messes with the accuracy of the prediction models, and should be increased to probably infinite however there are some bugs in Kube.rs that say you should not go above 295 seconds, should be addressed...
             ..ListParams::default()
         },
     )
     .run(
         reconcile,
         error_policy,
-       Context::new(Data {
-         client,
-        //    out_namespace,
-           huge_mem_alloc,
+        Context::new(Data {
+            client,
+            // out_namespace,
+            huge_mem_alloc,
         }),
     )
     .for_each(|res| async move {
@@ -133,14 +121,10 @@ async fn main_async() {
     .await;
 }
 
-
-async fn reconcile(
-    resource: Arc<TestResource>,
-    ctx: Context<Data>,
-) -> Result<Action, Error> {
+async fn reconcile(resource: Arc<TestResource>, ctx: Context<Data>) -> Result<Action, Error> {
     let now_timestamp = MicroTime(Local::now().with_timezone(&Utc));
 
-    println!("{:?}  reconcile called",now_timestamp.0.to_string());
+    println!("{:?}  reconcile called", now_timestamp.0.to_string());
 
     let client = ctx.get_ref().client.clone();
     //or use provided resource in arc
@@ -149,9 +133,9 @@ async fn reconcile(
     let now_timestamp = MicroTime(Local::now().with_timezone(&Utc));
 
     match resource.get(KUBESECRET).await {
-        Ok(mut existing) => {
-            let size  =  ctx.get_ref().huge_mem_alloc.len();
-            println!("{:?}    child node reconsile changed secret on {:?} to {:?}  with  {:?} byte buffer", now_timestamp.0.to_string(),existing.spec.nonce -1,existing.spec.nonce,size );
+        Ok(existing) => {
+            let size = ctx.get_ref().huge_mem_alloc.len();
+            println!("{:?}    child node reconcile changed secret on {:?} to {:?}  with  {:?} byte buffer", now_timestamp.0.to_string(),existing.spec.nonce -1,existing.spec.nonce,size );
         }
         Err(kube::Error::Api(ae)) if ae.code == 404 => {
             println!("No testresource, made new one");
@@ -159,7 +143,7 @@ async fn reconcile(
             resource
                 .create(
                     &PostParams::default(),
-                    &test_resource(&KUBESECRET, &index, now_timestamp),
+                    &test_resource(KUBESECRET, &index, now_timestamp),
                 )
                 .await?;
         }
@@ -170,7 +154,6 @@ async fn reconcile(
     Ok(Action::await_change())
 }
 
-
 fn test_resource(name: &str, nonce: &i64, start_timestamp: MicroTime) -> TestResource {
     TestResource {
         metadata: ObjectMeta {
@@ -178,10 +161,8 @@ fn test_resource(name: &str, nonce: &i64, start_timestamp: MicroTime) -> TestRes
             ..Default::default()
         },
         spec: TestResourceSpec {
-            nonce: nonce.clone(),
+            nonce: *nonce,
             updated_at: Some(start_timestamp),
         },
     }
 }
-
-

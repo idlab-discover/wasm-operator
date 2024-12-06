@@ -1,12 +1,14 @@
 #![allow(unsafe_code)]
 
 mod delay;
+mod error;
 mod executor;
 pub(crate) mod http_data;
 mod memory;
 mod requestor;
 
 pub use delay::register_delay;
+pub use error::SpawnerError;
 pub use executor::get_mut_executor;
 pub use executor::get_spawner;
 pub use executor::start_async;

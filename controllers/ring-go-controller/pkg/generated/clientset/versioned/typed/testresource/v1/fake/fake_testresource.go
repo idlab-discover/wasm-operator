@@ -64,7 +64,7 @@ func (c *FakeTestResources) Watch(ctx context.Context, opts v1.ListOptions) (wat
 
 }
 
-// Create takes the representation of a testResource and creates it.  Returns the server's representation of the testResource, and an error, if there is any.
+// Create takes the representation of a testResource and creates it. Returns the server's representation of the testResource, and an error, if there is any.
 func (c *FakeTestResources) Create(ctx context.Context, testResource *testresourcev1.TestResource, opts v1.CreateOptions) (result *testresourcev1.TestResource, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(testresourcesResource, c.ns, testResource), &testresourcev1.TestResource{})

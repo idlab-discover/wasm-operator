@@ -92,7 +92,7 @@ func (c *testResources) Watch(ctx context.Context, opts metav1.ListOptions) (wat
 		Watch(ctx)
 }
 
-// Create takes the representation of a testResource and creates it.  Returns the server's representation of the testResource, and an error, if there is any.
+// Create takes the representation of a testResource and creates it. Returns the server's representation of the testResource, and an error, if there is any.
 func (c *testResources) Create(ctx context.Context, testResource *v1.TestResource, opts metav1.CreateOptions) (result *v1.TestResource, err error) {
 	result = &v1.TestResource{}
 	err = c.client.Post().

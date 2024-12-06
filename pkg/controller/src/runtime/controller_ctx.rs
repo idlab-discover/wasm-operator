@@ -6,6 +6,7 @@ use wasmtime_wasi::WasiCtx;
 
 pub struct ControllerCtx {
     pub wasi_ctx: WasiCtx,
+    #[allow(dead_code)]
     pub async_client_id: u64,
     pub async_request_id_counter: Arc<AtomicU64>,
     pub ops_runner: Arc<Mutex<OpsRunner>>,

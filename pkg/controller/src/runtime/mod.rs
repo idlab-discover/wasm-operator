@@ -18,9 +18,9 @@ pub mod controller_ctx;
 use lazy_static::lazy_static;
 
 lazy_static! {
-    pub static ref COMPILE_WITH_UNINSTANCIATE: bool = env!("COMPILE_WITH_UNINSTANTIATE") == "TRUE";
-    pub static ref POOL_SIZE: u32 = if *COMPILE_WITH_UNINSTANCIATE {
-        // TODO why  set pool size to 10?
+    pub static ref COMPILE_WITH_UNINSTANTIATE: bool = env!("COMPILE_WITH_UNINSTANTIATE") == "TRUE";
+    pub static ref POOL_SIZE: u32 = if *COMPILE_WITH_UNINSTANTIATE {
+        // TODO: why set pool size to 10?
         100
     } else {
         1000

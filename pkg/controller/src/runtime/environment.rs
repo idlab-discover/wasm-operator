@@ -23,25 +23,24 @@ impl Environment {
     pub fn new() -> Result<Self, Error> {
         let mut config = Config::new();
         config.generate_address_map(false);
-        // TODO memory_init_cow is default true in newer versions of wasm time
+        // TODO: memory_init_cow is default true in newer versions of wasm time
         config.memory_init_cow(true);
         config.cranelift_opt_level(OptLevel::SpeedAndSize);
 
+        // TODO: change limits back
+        let mut instance_limits = wasmtime::InstanceLimits::default();
+        println!("instance limits was {:?}", instance_limits);
+        instance_limits.size = 938860800;
+        instance_limits.memory_pages *= 10;
 
-        // TODO  change limits back
-        let mut instancelimits  =  wasmtime::InstanceLimits::default();
-        println!("instance limits was {:?}",instancelimits);
-        instancelimits.size = 938860800;
-        instancelimits.memory_pages  *=10;
+        println!("instance limits are {:?}", instance_limits);
 
-        println!("instance limits are {:?}",instancelimits);
-
-        if *super::COMPILE_WITH_UNINSTANCIATE {
+        if *super::COMPILE_WITH_UNINSTANTIATE {
             config.allocation_strategy(InstanceAllocationStrategy::Pooling {
                 strategy: wasmtime::PoolingAllocationStrategy::ReuseAffinity,
                 instance_limits: wasmtime::InstanceLimits {
                     count: *super::POOL_SIZE,
-                    ..instancelimits
+                    ..instance_limits
                 },
             });
         }
@@ -49,9 +48,7 @@ impl Environment {
         let engine = Engine::new(&config)?;
 
         let mut linker = Linker::new(&engine);
-        wasmtime_wasi::add_to_linker(&mut linker, |cx: &mut ControllerCtx| {
-            &mut cx.wasi_ctx
-        })?;
+        wasmtime_wasi::add_to_linker(&mut linker, |cx: &mut ControllerCtx| &mut cx.wasi_ctx)?;
 
         register_imports(&mut linker)?;
 

@@ -49,6 +49,7 @@ fn error_policy(_error: &Error, _ctx: Context<Data>) -> Action {
 struct Data {
     client: Client,
     out_namespace: String,
+    #[allow(dead_code)]
     huge_mem_alloc: Arc<Vec<u8>>,
 }
 
@@ -88,7 +89,7 @@ async fn main_async() {
     // const heap_mem_size: usize = 1 * 1024 * 1024; // 1MiB
     // const heap_mem_size: usize = 2 * 1024 * 1024; // 2MiB
     // const heap_mem_size: usize = 4 * 1024 * 1024; // 4MiB
-    
+
     let heap_mem_size = env::var("HEAP_MEM_SIZE").unwrap_or("0".to_string());
     let heap_mem_size = heap_mem_size.parse::<usize>().unwrap();
 
@@ -96,7 +97,7 @@ async fn main_async() {
 
     let mut huge_mem_alloc = Vec::with_capacity(heap_mem_size);
     for i in 0..heap_mem_size {
-        huge_mem_alloc.push((i + 9 % 256) as u8);
+        huge_mem_alloc.push((i + 9) as u8);
     }
     let huge_mem_alloc = Arc::new(huge_mem_alloc);
 
@@ -134,7 +135,7 @@ async fn reconcile(
     let out_namespace = ctx.get_ref().out_namespace.clone();
 
     let name = in_test_resource.name();
-    let nonce = in_test_resource.spec.nonce.clone();
+    let nonce = in_test_resource.spec.nonce;
 
     let out_test_resources: Api<TestResource> =
         Api::namespaced(client.clone(), out_namespace.as_str());
@@ -143,7 +144,10 @@ async fn reconcile(
     match out_test_resources.get(&name).await {
         Ok(mut existing) => {
             if nonce > existing.spec.nonce {
-                println!("nonce {} > current nonce  {}, resetting resource",nonce,existing.spec.nonce );
+                println!(
+                    "nonce {} > current nonce  {}, resetting resource",
+                    nonce, existing.spec.nonce
+                );
                 existing.spec.nonce = nonce;
                 existing.spec.updated_at = Some(now_timestamp);
                 out_test_resources
@@ -175,7 +179,7 @@ fn test_resource(name: &str, nonce: &i64, start_timestamp: MicroTime) -> TestRes
             ..Default::default()
         },
         spec: TestResourceSpec {
-            nonce: nonce.clone(),
+            nonce: *nonce,
             updated_at: Some(start_timestamp),
         },
     }
