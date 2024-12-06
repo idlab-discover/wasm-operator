@@ -43,7 +43,7 @@ where
         .call(&mut store, allocation_size)
 }
 
-// TODO maybe make abi for memory loading ??
+// TODO maybe make abi for memory loading??
 
 pub(crate) async fn wakeup<S>(
     mut store: S,

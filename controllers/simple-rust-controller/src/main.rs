@@ -99,7 +99,7 @@ async fn main_async() {
         in_resources,
         ListParams {
             bookmarks: false,
-            // TODO IMPORTANT timeout parameter is currently set to 290 seconds for every watch then it starts a new watch this is pritty random and messes with the acuracy of the prediction models, and should be increased to probably infinit however there are some bugs in Kube.rs that say you should not go above 295 seconds, should be adressed...
+            // TODO IMPORTANT timeout parameter is currently set to 290 seconds for every watch then it starts a new watch this is pretty random and messes with the accuracy of the prediction models, and should be increased to probably infinite however there are some bugs in Kube.rs that say you should not go above 295 seconds, should be addressed...
             ..ListParams::default()
         },
     )
@@ -135,7 +135,7 @@ async fn reconcile(resource: Arc<TestResource>, ctx: Context<Data>) -> Result<Ac
     match resource.get(KUBESECRET).await {
         Ok(existing) => {
             let size = ctx.get_ref().huge_mem_alloc.len();
-            println!("{:?}    child node reconsile changed secret on {:?} to {:?}  with  {:?} byte buffer", now_timestamp.0.to_string(),existing.spec.nonce -1,existing.spec.nonce,size );
+            println!("{:?}    child node reconcile changed secret on {:?} to {:?}  with  {:?} byte buffer", now_timestamp.0.to_string(),existing.spec.nonce -1,existing.spec.nonce,size );
         }
         Err(kube::Error::Api(ae)) if ae.code == 404 => {
             println!("No testresource, made new one");

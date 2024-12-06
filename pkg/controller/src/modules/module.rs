@@ -1,6 +1,6 @@
 use super::OpsRunner;
 use super::WasmRuntime;
-use crate::runtime::COMPILE_WITH_UNINSTANCIATE;
+use crate::runtime::COMPILE_WITH_UNINSTANTIATE;
 use chrono::DateTime;
 use chrono::Duration;
 use chrono::Utc;
@@ -21,10 +21,10 @@ use tokio::time::Duration as Durationtk;
 use tokio::time::Sleep;
 use tracing::debug;
 
-const BUFFERLENGTH: usize = 50; // how long history of events to be saved
-const SHUTDOWNINACTIVEINTERVALMS: i64 = 1000; // if inactive for x ms, shut down
-const TIMEBEFOREPREDICTEDMS: i64 = 1000; // load back in to memory when predicted time is close
-const GRACEPERIODMS: i64 = 1000; // keep in memory period after prediction time
+const BUFFER_LENGTH: usize = 50; // how long history of events to be saved
+const SHUTDOWN_INACTIVE_INTERVAL_MS: i64 = 1000; // if inactive for x ms, shut down
+const TIME_BEFORE_PREDICTED_MS: i64 = 1000; // load back in to memory when predicted time is close
+const GRACE_PERIOD_MS: i64 = 1000; // keep in memory period after prediction time
 
 #[derive(Deserialize, Debug)]
 struct ServerResp {
@@ -36,16 +36,16 @@ pub struct ControllerModule {
     ops_runner: Arc<Mutex<OpsRunner>>,
     last_event_time: DateTime<Utc>,
     last_events: VecDeque<DateTime<Utc>>,
-    apiserver: String,
+    api_server: String,
     http_client: Client,
     predicted_wakeup: ServerResp,
-    sleepvec: Vec<Pin<Box<Sleep>>>,
+    sleep_vec: Vec<Pin<Box<Sleep>>>,
     first_event_after_shutdown: bool,
 }
 
-// How this works: variables: Last event (when the last event was i.e last async reques), SHUTDOWNINACTIVEINTERVALMS is time of inactivity from last event when we want to shutdown, TIMEBEFOREPREDICTEDMs is the time before the predicted next wakeup
+// How this works: variables: Last event (when the last event was i.e last async request), SHUTDOWN_INACTIVE_INTERVAL_MS is time of inactivity from last event when we want to shutdown, TIME_BEFORE_PREDICTED_MS is the time before the predicted next wakeup
 //  Last event                        shutdown       load back mem                       predicted                     shutdown if no  event was and prediction  was wrong
-//    |_____SHUTDOWNINACTIVEINTERVALMS__|                 | ____TIMEBEFOREPREDICTEDMs________|_________GRACEPERIODMs________|
+//    |_____SHUTDOWN_INACTIVE_INTERVAL_MS__|                 | ____TIME_BEFORE_PREDICTED_MS________|_________GRACE_PERIOD_MS________|
 //                                                                       we  hope predicted is  right and an event is made here
 
 // How polling works https://fasterthanli.me/articles/pin-and-suffering
@@ -55,26 +55,26 @@ impl ControllerModule {
     pub(crate) fn new(wasm: WasmRuntime, ops_runner: Arc<Mutex<OpsRunner>>) -> Self {
         debug!("doing new");
 
-        let mut last_events = VecDeque::with_capacity(BUFFERLENGTH);
+        let mut last_events = VecDeque::with_capacity(BUFFER_LENGTH);
         let last_event_time = Utc::now();
         last_events.push_back(Utc::now());
-        let mut apiserver = env::var("PREDICTION_SERVER").unwrap_or("none".to_string());
-        apiserver.push_str("prediction");
+        let mut api_server = env::var("PREDICTION_SERVER").unwrap_or("none".to_string());
+        api_server.push_str("prediction");
 
         let http_client = reqwest::blocking::Client::new();
         let predicted_wakeup = ServerResp {
             prediction: Utc::now() + Duration::days(999),
         };
-        let sleepvec = vec![];
+        let sleep_vec = vec![];
         let first_event_after_shutdown = true;
         Self {
             wasm,
             ops_runner,
             last_events,
-            apiserver,
+            api_server,
             http_client,
             predicted_wakeup,
-            sleepvec,
+            sleep_vec,
             first_event_after_shutdown,
             last_event_time,
         }
@@ -106,7 +106,7 @@ impl ControllerModule {
 
         // will be be executed when all instructions are over, but for operators this is probably never
         if runner.pending_ops.is_empty() {
-            // TODO what happends to the wakups still in the sleep list when context is ready
+            // TODO what happens to the wakeups still in the sleep list when context is ready
             //cx.waker().wake_by_ref();
             return Poll::Ready(Ok(()));
         }
@@ -144,32 +144,32 @@ impl ControllerModule {
             cx.waker().wake_by_ref();
             //wake up again after graceperiod todo better calculation than grace+timebefore for quicker
             let mut sleep = Box::pin(tokio::time::sleep(Durationtk::from_millis(
-                (GRACEPERIODMS + TIMEBEFOREPREDICTEDMS) as u64,
+                (GRACE_PERIOD_MS + TIME_BEFORE_PREDICTED_MS) as u64,
             )));
             sleep.poll_unpin(cx);
-            self.sleepvec.push(sleep);
+            self.sleep_vec.push(sleep);
         }
 
         if runner.nr_web_calls == 0
             && !self.wasm.is_uninstantiating()
-            && *COMPILE_WITH_UNINSTANCIATE
+            && *COMPILE_WITH_UNINSTANTIATE
             // only shutdown not direct but after x milliseconds of inactive
             && is_inactive_period(&current_time, &self.last_event_time)
             // do not shut down when we see in the future predicted is coming
             && ! in_time_before_prediction_period(&current_time, &self.predicted_wakeup.prediction)
             && ! in_time_grace_period(&current_time, &self.predicted_wakeup.prediction)
         {
-            debug!("doing signal uninstatniate");
+            debug!("doing signal uninstantiate");
             self.wasm.uninstantiate();
 
             cx.waker().wake_by_ref();
             // call a API here given event history and wake it up in time before message comes in
-            //if no async func was called, then we know the prediction failed and we dont do another predition since this will give same date...
+            //if no async func was called, then we know the prediction failed and we don't do another prediction since this will give same date...
             if !self.first_event_after_shutdown {
                 let body = json!({ "history": self.last_events ,  "function": "SES"});
                 match self
                     .http_client
-                    .post(self.apiserver.clone())
+                    .post(self.api_server.clone())
                     .json(&body)
                     .send()
                 {
@@ -177,20 +177,21 @@ impl ControllerModule {
                         self.predicted_wakeup = resp.json().unwrap();
                         debug!("doing predicted time is {:?}", self.predicted_wakeup);
 
-                        // wakup before we think predicted is incoming (need min x duration before load is fisinished)
+                        // wakup before we think predicted is incoming (need min x duration before load is finished)
                         // TODO assume date is always in future
 
-                        let mut nexttime = (self.predicted_wakeup.prediction - Utc::now())
+                        let mut next_time = (self.predicted_wakeup.prediction - Utc::now())
                             .num_milliseconds()
-                            - TIMEBEFOREPREDICTEDMS
+                            - TIME_BEFORE_PREDICTED_MS
                             + 5;
                         // make it positive but maybe throw error if neg instead or do new prediction
-                        nexttime = nexttime.abs();
+                        next_time = next_time.abs();
 
-                        let mut sleep =
-                            Box::pin(tokio::time::sleep(Durationtk::from_millis(nexttime as u64)));
+                        let mut sleep = Box::pin(tokio::time::sleep(Durationtk::from_millis(
+                            next_time as u64,
+                        )));
                         sleep.poll_unpin(cx);
-                        self.sleepvec.push(sleep);
+                        self.sleep_vec.push(sleep);
                     }
                     Err(e) => {
                         debug!("doing error {:?}", e)
@@ -203,7 +204,7 @@ impl ControllerModule {
         }
 
         // remove all old wakeups from vector
-        self.sleepvec.retain(|e| !e.is_elapsed());
+        self.sleep_vec.retain(|e| !e.is_elapsed());
 
         //debug!("doing pend end event");
 
@@ -257,10 +258,10 @@ impl ControllerModule {
                 self.add_event_time(now_timestamp);
                 // wakeup doesn't always "wake up from disk"
 
-                // let mut sleep = Box::pin(tokio::time::sleep(Durationtk::from_millis((SHUTDOWNINACTIVEINTERVALMS + 10) as u64)));
-                //debugnextwakeup(SHUTDOWNINACTIVEINTERVALMS + 10);
+                // let mut sleep = Box::pin(tokio::time::sleep(Durationtk::from_millis((SHUTDOWN_INACTIVE_INTERVAL_MS + 10) as u64)));
+                //debugnextwakeup(SHUTDOWN_INACTIVE_INTERVAL_MS + 10);
                 //sleep.poll_unpin(cx);
-                //self.sleepvec.push(sleep);
+                //self.sleep_vec.push(sleep);
             }
 
             // our prediction failed, just set it far away
@@ -275,10 +276,10 @@ impl ControllerModule {
             if result.finished {
                 self.last_event_time = Utc::now();
                 let mut sleep = Box::pin(tokio::time::sleep(Durationtk::from_millis(
-                    (SHUTDOWNINACTIVEINTERVALMS + 10) as u64,
+                    (SHUTDOWN_INACTIVE_INTERVAL_MS + 10) as u64,
                 )));
                 sleep.poll_unpin(cx);
-                self.sleepvec.push(sleep);
+                self.sleep_vec.push(sleep);
             }
 
             self.wasm
@@ -292,7 +293,7 @@ impl ControllerModule {
     }
 
     fn add_event_time(&mut self, time: DateTime<Utc>) {
-        if self.last_events.len() >= BUFFERLENGTH {
+        if self.last_events.len() >= BUFFER_LENGTH {
             self.last_events.pop_front();
         }
         self.last_events.push_back(time);
@@ -301,7 +302,7 @@ impl ControllerModule {
 }
 
 //        load back mem                       predicted                            CURRENT
-//               | ____TIMEBEFOREPREDICTEDMs________|_________GRACEPERIODMs________|
+//               | ____TIME_BEFORE_PREDICTED_MS________|_________GRACE_PERIOD_MS________|
 //
 
 fn in_time_before_prediction_period(
@@ -311,21 +312,21 @@ fn in_time_before_prediction_period(
     let difference = predicted_time
         .signed_duration_since(*current_time)
         .num_milliseconds();
-    difference > 0 && difference < TIMEBEFOREPREDICTEDMS
+    difference > 0 && difference < TIME_BEFORE_PREDICTED_MS
 }
 
 fn in_time_grace_period(current_time: &DateTime<Utc>, predicted_time: &DateTime<Utc>) -> bool {
     let difference = current_time
         .signed_duration_since(*predicted_time)
         .num_milliseconds();
-    difference > 0 && difference < GRACEPERIODMS
+    difference > 0 && difference < GRACE_PERIOD_MS
 }
 
 //  Last event                        shutdown/CURRENTTIME
-//    |_____SHUTDOWNINACTIVEINTERVALMS__|
-fn is_inactive_period(current_time: &DateTime<Utc>, lastevent: &DateTime<Utc>) -> bool {
+//    |_____SHUTDOWN_INACTIVE_INTERVAL_MS__|
+fn is_inactive_period(current_time: &DateTime<Utc>, last_event: &DateTime<Utc>) -> bool {
     let difference = current_time
-        .signed_duration_since(*lastevent)
+        .signed_duration_since(*last_event)
         .num_milliseconds();
-    difference > SHUTDOWNINACTIVEINTERVALMS
+    difference > SHUTDOWN_INACTIVE_INTERVAL_MS
 }

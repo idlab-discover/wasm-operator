@@ -28,19 +28,19 @@ impl Environment {
         config.cranelift_opt_level(OptLevel::SpeedAndSize);
 
         // TODO: change limits back
-        let mut instancelimits = wasmtime::InstanceLimits::default();
-        println!("instance limits was {:?}", instancelimits);
-        instancelimits.size = 938860800;
-        instancelimits.memory_pages *= 10;
+        let mut instance_limits = wasmtime::InstanceLimits::default();
+        println!("instance limits was {:?}", instance_limits);
+        instance_limits.size = 938860800;
+        instance_limits.memory_pages *= 10;
 
-        println!("instance limits are {:?}", instancelimits);
+        println!("instance limits are {:?}", instance_limits);
 
-        if *super::COMPILE_WITH_UNINSTANCIATE {
+        if *super::COMPILE_WITH_UNINSTANTIATE {
             config.allocation_strategy(InstanceAllocationStrategy::Pooling {
                 strategy: wasmtime::PoolingAllocationStrategy::ReuseAffinity,
                 instance_limits: wasmtime::InstanceLimits {
                     count: *super::POOL_SIZE,
-                    ..instancelimits
+                    ..instance_limits
                 },
             });
         }

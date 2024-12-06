@@ -45,15 +45,8 @@ async fn main_async() {
 
     let wait_intervals = read_traces();
 
-    let client = Client::try_default().await;
-    let clientunwrapped;
-    match client {
-        Ok(c) => clientunwrapped = c,
-        Err(e) => {
-            panic!("couldn't launch client {e}")
-        }
-    }
-    let secrets: Api<TestResource> = Api::namespaced(clientunwrapped, "default");
+    let client = Client::try_default().await.expect("couldn't launch client");
+    let secrets: Api<TestResource> = Api::namespaced(client, "default");
 
     for duration in wait_intervals {
         sleep(duration.to_std().expect("can't convert time to std")).await;
