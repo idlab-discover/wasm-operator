@@ -34,7 +34,7 @@ mkdir -p bin_wasm/
 echo ">> Build the controller wasm rust"
 COMPILE_NONCE="REPLACE_MEREPLACE_ME" cargo wasi build --release --features client-wasi
 echo ">> optimise wasm"
-# why use wasm opt when it is default already  optimised using  cargo wasi
+# why use wasm opt when it is default already optimised using cargo wasi
 wasm-opt --version
 #wasm-opt -Os ./target/wasm32-wasi/release/ring-pod-example.wasi.wasm -o ./target/wasm32-wasi/release/ring-pod-example.wasi.opt.wasm
 #cp ./target/wasm32-wasi/release/ring-pod-example.wasi.opt.wasm ./bin_wasm/ring-rust-example.wasi.REPLACE_ME.wasm

@@ -22,7 +22,7 @@ if [ -f ".venv/bin/activate" ]; then
 fi
 echo ">> Build the docker image flask server"
 
-docker build -f dockerFile -t "docker.io/kevinvl123/prediction_webserver:${local_tag}" .
+docker build -f Dockerfile -t "docker.io/kevinvl123/prediction_webserver:${local_tag}" .
 
 echo ">> Load the docker images"
 
