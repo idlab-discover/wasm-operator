@@ -1,0 +1,7 @@
+name: "simplecontroller"
+wasm: ./simple-pod-example.wasm
+env:
+  - name: RUST_LOG
+    value: "info"
+  - name: HEAP_MEM_SIZE
+    value: "90000000"

@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: controller
+  namespace: wasm-rust-simple
+spec:
+  serviceAccountName: custom-controller
+  containers:
+    - name: controller
+      image: wasm_rust_simple:controller
+      env:
+        - name: RUST_LOG
+          value: "info"
+        - name: PREDICTION_SERVER
+          value: "http://10.108.56.73:5000/"
+      resources:
+        requests:
+          memory: "640Mi"
+        limits:
+          memory: "1280Mi"
