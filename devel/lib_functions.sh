@@ -26,7 +26,7 @@ generate_wasm_yaml_file() {
 
     cat <<EOF
 name: ${NAME}${CONTROLLER_NR}
-wasm: ./ring-rust-example.wasi.controller${CONTROLLER_NR}.wasm
+wasm: ./ring-rust-example.controller${CONTROLLER_NR}.wasm
 env:
 - name: RUST_LOG
   value: "info"

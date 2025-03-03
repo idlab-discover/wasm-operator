@@ -58,7 +58,7 @@ Below is an example on how to setup the **simple-rust-controller** example.
 mkdir temp
 cp ./pkg/controller/target/x86_64-unknown-linux-musl/release/controller ./temp
 cp ./tests/wasm_rust_simple/wasm_config.yaml ./temp
-cp ./controllers/target/wasm32-wasip1/release/${NAME_OPERATOR}-optimized.wasi.wasm ./temp
+cp ./controllers/target/wasm32-wasip1/release/${NAME_OPERATOR}-optimized.wasm ./temp
 docker build -f ./tests/wasm_rust_simple/Dockerfile -t wasm_rust_simple:controller ./temp
 ```
 
