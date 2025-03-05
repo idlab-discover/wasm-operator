@@ -39,9 +39,9 @@ We provide an example configuration in [tests/wasm_rust_simple/wasm_config.yaml]
 ```sh
 export NAME_OPERATOR="simple-pod-example"
 # Build the WASM for the child operator
-cargo wasi build --release --features client-wasi
+cargo component build --release --features client-wasi
 # Optimize the WASM
-wasm-opt -Os ./target/wasm32-wasi/release/${NAME_OPERATOR}.wasi.wasm -o ./target/wasm32-wasi/release/${NAME_OPERATOR}-optimized.wasi.wasm
+wasm-opt -Os ./target/wasm32-wasip1/release/${NAME_OPERATOR}.wasm -o ./target/wasm32-wasip1/release/${NAME_OPERATOR}-optimized.wasm
 ```
 
 ### Building the complete Docker image and loading into Kind
@@ -58,7 +58,7 @@ Below is an example on how to setup the **simple-rust-controller** example.
 mkdir temp
 cp ./pkg/controller/target/x86_64-unknown-linux-musl/release/controller ./temp
 cp ./tests/wasm_rust_simple/wasm_config.yaml ./temp
-cp ./controllers/target/wasm32-wasi/release/${NAME_OPERATOR}-optimized.wasi.wasm ./temp
+cp ./controllers/target/wasm32-wasip1/release/${NAME_OPERATOR}-optimized.wasm ./temp
 docker build -f ./tests/wasm_rust_simple/Dockerfile -t wasm_rust_simple:controller ./temp
 ```
 

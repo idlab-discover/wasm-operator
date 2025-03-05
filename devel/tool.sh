@@ -110,8 +110,8 @@ check_tool_rust() {
     source $HOME/.cargo/env
   }
 
-  rustup target add wasm32-wasi
-  cargo install cargo-wasi
+  rustup target add wasm32-wasip1
+  cargo install cargo-component
 
   check_tool sccache
   RUSTC_WRAPPER=sccache

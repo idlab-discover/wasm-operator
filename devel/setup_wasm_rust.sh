@@ -32,20 +32,20 @@ mkdir -p bin_wasm/
 
 # Compile the ring controller once with "REPLACE_MEREPLACE_ME" as nonce
 echo ">> Build the controller wasm rust"
-COMPILE_NONCE="REPLACE_MEREPLACE_ME" cargo wasi build --release --features client-wasi
+COMPILE_NONCE="REPLACE_MEREPLACE_ME" cargo component build --release --features client-wasi
 echo ">> optimise wasm"
-# why use wasm opt when it is default already optimised using cargo wasi
+# why use wasm opt when it is default already optimised using cargo component
 wasm-opt --version
-#wasm-opt -Os ./target/wasm32-wasi/release/ring-pod-example.wasi.wasm -o ./target/wasm32-wasi/release/ring-pod-example.wasi.opt.wasm
-#cp ./target/wasm32-wasi/release/ring-pod-example.wasi.opt.wasm ./bin_wasm/ring-rust-example.wasi.REPLACE_ME.wasm
-cp ./target/wasm32-wasi/release/ring-pod-example.wasi.wasm ./bin_wasm/ring-rust-example.wasi.REPLACE_ME.wasm
+#wasm-opt -Os ./target/wasm32-wasip1/release/ring-pod-example.wasm -o ./target/wasm32-wasip1/release/ring-pod-example.opt.wasm
+#cp ./target/wasm32-wasip1/release/ring-pod-example.opt.wasm ./bin_wasm/ring-rust-example.REPLACE_ME.wasm
+cp ./target/wasm32-wasip1/release/ring-pod-example.wasm ./bin_wasm/ring-rust-example.REPLACE_ME.wasm
 
 # Create unique versions of the controller by replacing the "REPLACE_MEREPLACE_ME" nonce value
 echo ">> Create variants"
 for ((i = 0; i < NR_CONTROLLERS; i++)); do
     CONTROLLER_NAME="controller${i}"
     NONCE_VALUE=$(echo $CONTROLLER_NAME | md5sum | head -c 20)
-    sed -e "s|REPLACE_MEREPLACE_ME|$NONCE_VALUE|" ./bin_wasm/ring-rust-example.wasi.REPLACE_ME.wasm >./bin_wasm/ring-rust-example.wasi.$CONTROLLER_NAME.wasm
+    sed -e "s|REPLACE_MEREPLACE_ME|$NONCE_VALUE|" ./bin_wasm/ring-rust-example.REPLACE_ME.wasm >./bin_wasm/ring-rust-example.$CONTROLLER_NAME.wasm
     CONTROLLER_NAMES+=($CONTROLLER_NAME)
 done
 popd

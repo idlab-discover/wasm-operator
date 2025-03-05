@@ -17,6 +17,7 @@ We will highlight which shell file automates the process
 ### Compiling the projects
 
 - [Rust](https://www.rust-lang.org/) - Required to build the parent controller and child controllers
+- [Cargo component](https://github.com/bytecodealliance/cargo-component) - Easier to build WASM with included interfaces
 - [Go](https://go.dev/) - Required to build the `ring-go-controller` which is used as a comparison
 - [Cross](https://crates.io/crates/cross) - Easier cross-compilation than with cargo, while providing isolation through Docker containers
 - [wasm-opt](https://github.com/WebAssembly/binaryen) - Required to optimize the WASM output from cross
