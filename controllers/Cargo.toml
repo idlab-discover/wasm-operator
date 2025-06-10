@@ -1,0 +1,10 @@
+[workspace]
+
+members = [
+#    "comb-rust-controller",
+#    "ring-go-controller",
+    "simple-rust-controller",
+#    "mongodbSpammer", 
+#    "ring-rust-controller",
+#    "value-changer", 
+]

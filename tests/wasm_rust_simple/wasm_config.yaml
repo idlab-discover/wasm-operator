@@ -1,5 +1,5 @@
 name: "simplecontroller"
-wasm: ./simple-pod-example.wasm
+wasm: ./simple-pod-example-optimized.wasm
 env:
   - name: RUST_LOG
     value: "info"
