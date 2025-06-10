@@ -38,7 +38,7 @@ We provide an example configuration in [tests/wasm_rust_simple/wasm_config.yaml]
 
 ```sh
 export NAME_OPERATOR="simple-pod-example"
-cd controllers/simple-rust-controller/
+cd controllers/
 
 # Build the WASM for the child operator
 cargo component build --release --features client-wasi
