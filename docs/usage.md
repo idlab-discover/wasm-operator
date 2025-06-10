@@ -102,3 +102,9 @@ You can check that everything went smoothly by ordering a wait on the pods:
 ```sh
 kubectl -n wasm-rust-simple wait --for=condition=ready pod --all --timeout=3000s
 ```
+
+Also check the logs of the controller
+
+```sh
+kubectl -n wasm-rust-simple logs pod/controller
+```
