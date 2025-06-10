@@ -35,6 +35,12 @@ We will highlight which shell file automates the process
 - [Helm](https://helm.sh/)
 - [kube-apiserver + etcd](https://github.com/kubernetes-sigs/kubebuilder)
 
+## Getting the source code
+
+```shell
+git clone --recurse-submodules git@github.com:idlab-discover/wasm-operator.git
+```
+
 ## Creating a Kind cluster
 
 > Original file: [`devel/create_cluster.sh`](../devel/create_cluster.sh)
