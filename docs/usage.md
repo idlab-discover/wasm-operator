@@ -44,6 +44,8 @@ cd controllers/
 cargo component build --release --features client-wasi
 # Optimize the WASM
 wasm-opt -Os ./target/wasm32-wasip1/release/${NAME_OPERATOR}.wasm -o ./target/wasm32-wasip1/release/${NAME_OPERATOR}-optimized.wasm
+
+cd ../
 ```
 
 ### Building the complete Docker image and loading into Kind
@@ -94,7 +96,9 @@ echo ${SERVER}
 
 ```sh
 kubectl apply -f ./tests/wasm_rust_simple/manifests/namespace.yaml
-kubectl apply -f ./tests/wasm_rust_simple/manifests/pod.yaml
+
+kubectl delete -f ./tests/wasm_rust_simple/manifests/controller.yaml
+kubectl apply -f ./tests/wasm_rust_simple/manifests/controller.yaml
 ```
 
 You can check that everything went smoothly by ordering a wait on the pods:
@@ -107,4 +111,33 @@ Also check the logs of the controller
 
 ```sh
 kubectl -n wasm-rust-simple logs pod/controller
+```
+
+Then deploy the function.
+
+```sh
+kubectl delete -f ./tests/wasm_rust_simple/manifests/function1.yaml
+kubectl delete -f ./tests/wasm_rust_simple/manifests/function2.yaml
+kubectl delete -f ./tests/wasm_rust_simple/manifests/function3.yaml
+kubectl delete TestResource/cluster
+
+
+
+kubectl get TestResource
+cat ./tests/wasm_rust_simple/manifests/function1.yaml
+
+kubectl apply -f ./tests/wasm_rust_simple/manifests/function1.yaml
+kubectl get TestResource
+kubectl describe testresource/cluster
+
+kubectl apply -f ./tests/wasm_rust_simple/manifests/function2.yaml
+kubectl apply -f ./tests/wasm_rust_simple/manifests/function3.yaml
+kubectl describe testresource/cluster
+
+
+kubectl describe testresource/function1
+kubectl describe testresource/cluster
+
+
+kubectl -n wasm-rust-simple logs pod/controller --since 5m | grep -v reqwest | grep -v prediction
 ```

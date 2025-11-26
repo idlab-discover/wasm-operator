@@ -1,0 +1,7 @@
+apiVersion: amurant.io/v1
+kind: TestResource
+metadata:
+    name: function3
+    namespace: default
+spec:
+  nonce: 1
