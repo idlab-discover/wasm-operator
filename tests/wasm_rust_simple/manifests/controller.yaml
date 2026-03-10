@@ -12,7 +12,7 @@ spec:
         - name: RUST_LOG
           value: "info"
         - name: PREDICTION_SERVER
-          value: "http://10.108.56.73:5000/"
+          value: "http://10.105.208.191:5000/"
       resources:
         requests:
           memory: "640Mi"

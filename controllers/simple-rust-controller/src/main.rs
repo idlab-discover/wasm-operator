@@ -3,7 +3,7 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 
 use kube::{
     api::{ListParams, PostParams},
-    Api, Client, CustomResource,
+    Api, Client, CustomResource, ResourceExt,
 };
 use kube_runtime::controller::{Action, Context, Controller};
 
@@ -18,7 +18,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tracing::debug;
 
-const KUBESECRET: &str = "varsecret";
+const CLUSTER_RESOURCE: &str = "cluster";
 
 #[cfg(target_arch = "wasm32")]
 use {futures::task::SpawnExt, std::ops::Deref};
@@ -121,37 +121,58 @@ async fn main_async() {
     .await;
 }
 
-async fn reconcile(resource: Arc<TestResource>, ctx: Context<Data>) -> Result<Action, Error> {
+async fn reconcile(
+    in_test_resource: Arc<TestResource>,
+    ctx: Context<Data>
+) -> Result<Action, Error> {
     let now_timestamp = MicroTime(Local::now().with_timezone(&Utc));
 
-    println!("{:?}  reconcile called", now_timestamp.0.to_string());
+    println!("{:?}  reconcile called", now_timestamp.0.to_string()); 
 
     let client = ctx.get_ref().client.clone();
-    //or use provided resource in arc
-    let resource: Api<TestResource> = Api::namespaced(client, "default");
 
-    let now_timestamp = MicroTime(Local::now().with_timezone(&Utc));
+    if in_test_resource.name() == CLUSTER_RESOURCE {
+        println!("Cluster change detected, no action needed");
 
-    match resource.get(KUBESECRET).await {
-        Ok(existing) => {
-            let size = ctx.get_ref().huge_mem_alloc.len();
-            println!("{:?}    child node reconcile changed secret on {:?} to {:?}  with  {:?} byte buffer", now_timestamp.0.to_string(),existing.spec.nonce -1,existing.spec.nonce,size );
+    } else{
+
+
+        //or use provided resource in arc
+        let resource: Api<TestResource> = Api::namespaced(client, "default");
+
+        let now_timestamp = MicroTime(Local::now().with_timezone(&Utc));
+
+        match resource.get(CLUSTER_RESOURCE).await {
+            Ok(mut existing) => {
+                let size = ctx.get_ref().huge_mem_alloc.len();
+                println!("{:?}    New function detected, increasing functions from {:?} to {:?}", now_timestamp.0.to_string(),existing.spec.nonce,existing.spec.nonce+1);
+
+
+                existing.spec.nonce = existing.spec.nonce+1;
+                existing.spec.updated_at = Some(now_timestamp);
+                resource
+                    .replace(CLUSTER_RESOURCE, &PostParams::default(), &existing)
+                    .await?;
+
+            }
+            Err(kube::Error::Api(ae)) if ae.code == 404 => {
+                println!("No cluster resource, made new one with a single function");
+                let index: i64 = 1;
+                resource
+                    .create(
+                        &PostParams::default(),
+                        &test_resource(CLUSTER_RESOURCE, &index, now_timestamp),
+                    )
+                    .await?;
+            }
+
+            Err(e) => println!("getting resource {:?}", e),
         }
-        Err(kube::Error::Api(ae)) if ae.code == 404 => {
-            println!("No testresource, made new one");
-            let index: i64 = 1;
-            resource
-                .create(
-                    &PostParams::default(),
-                    &test_resource(KUBESECRET, &index, now_timestamp),
-                )
-                .await?;
-        }
-
-        Err(e) => println!("getting resource {:?}", e),
     }
 
+    // Ok(Action::requeue(Duration::from_secs(1)))
     Ok(Action::await_change())
+
 }
 
 fn test_resource(name: &str, nonce: &i64, start_timestamp: MicroTime) -> TestResource {
